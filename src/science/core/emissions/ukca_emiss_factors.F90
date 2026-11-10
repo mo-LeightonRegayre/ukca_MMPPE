@@ -59,6 +59,98 @@ CONTAINS
 !   one value for each grid cell. The sum of these factors for all cells
 !   within a column is always one (except for 3D emisssions).
 !---------------------------------------------------------------------------
+
+!LP_Start
+SUBROUTINE shift_emission_profile(original_profile, shift_m, full_profile)
+USE ukca_config_specification_mod, ONLY: ukca_config
+IMPLICIT NONE
+REAL, INTENT(IN)  :: original_profile(6)
+REAL, INTENT(IN)  :: shift_m
+REAL, INTENT(OUT) :: full_profile(7)
+
+INTEGER, PARAMETER :: n_layers = 7
+INTEGER :: i, j
+REAL :: layers(0:n_layers)
+REAL :: bin_edges(7), bin_widths(6), bin_centers(6)
+REAL :: cdf(7), shifted_cdf(7), new_pdf(6), shifted_edges(7)
+REAL :: underflow, overflow, total
+
+! Initialize layer edges
+layers = (/ 0.0, 20.0, 92.0, 184.0, 324.0, 522.0, 781.0, 1106.0 /)
+
+! Define bin edges and widths (layers 2–7)
+bin_edges = layers(1:7)
+DO i = 1, 6
+  bin_widths(i) = bin_edges(i+1) - bin_edges(i)
+  bin_centers(i) = 0.5 * (bin_edges(i) + bin_edges(i+1))
+END DO
+
+! Compute CDF
+cdf(1) = 0.0
+DO i = 2, 7
+  cdf(i) = cdf(i-1) + original_profile(i-1) * &
+           (bin_edges(i) - bin_edges(i-1)) / 100.0
+END DO
+
+! Shift edges
+DO i = 1, 7
+  shifted_edges(i) = bin_edges(i) + shift_m
+END DO
+
+! Interpolate shifted CDF at original bin edges
+DO i = 1, 7
+  IF (shifted_edges(1) > bin_edges(i)) THEN
+    shifted_cdf(i) = 0.0
+  ELSE IF (shifted_edges(7) < bin_edges(i)) THEN
+    shifted_cdf(i) = 1.0
+  ELSE
+    shifted_cdf(i) = -1.0
+    DO j = 1, 6
+      IF (shifted_edges(j) <= bin_edges(i) .AND. bin_edges(i) <= shifted_edges(j+1)) THEN
+        shifted_cdf(i) = cdf(j) + (cdf(j+1) - cdf(j)) * &
+                         (bin_edges(i) - shifted_edges(j)) / &
+                         (shifted_edges(j+1) - shifted_edges(j))
+        EXIT
+      END IF
+    END DO
+    IF (shifted_cdf(i) == -1.0) THEN
+      shifted_cdf(i) = 0.0
+    END IF
+  END IF
+END DO
+
+! Differentiate shifted CDF to get new PDF
+DO i = 1, 6
+  new_pdf(i) = 100.0 * (shifted_cdf(i+1) - shifted_cdf(i)) / bin_widths(i)
+  IF (new_pdf(i) < 0.0) new_pdf(i) = 0.0
+END DO
+
+! Handle underflow and overflow
+underflow = 0.0
+IF (shifted_edges(1) < bin_edges(1)) THEN
+  underflow = 100.0 * (shifted_cdf(2) - shifted_cdf(1)) / bin_widths(1)
+END IF
+
+overflow = 0.0
+IF (shifted_edges(7) > bin_edges(7)) THEN
+  overflow = 100.0 * (shifted_cdf(7) - shifted_cdf(6)) / bin_widths(6)
+END IF
+
+! Assemble full profile
+full_profile = 0.0
+full_profile(2:7) = new_pdf
+full_profile(2) = full_profile(2) + underflow
+full_profile(7) = full_profile(7) + overflow
+
+! Normalize
+total = SUM(full_profile)
+IF (total > 0.0) THEN
+  full_profile = full_profile * (100.0 / total)
+END IF
+
+END SUBROUTINE shift_emission_profile
+!LP_End
+
 SUBROUTINE vertical_emiss_factors (row_length, rows, model_levels,             &
                lowest_lev, highest_lev, vert_fact, field_name, vert_scaling_3d)
 
@@ -113,6 +205,11 @@ INTEGER (KIND=jpim), PARAMETER :: zhook_out = 1
 REAL    (KIND=jprb)            :: zhook_handle
 
 CHARACTER(LEN=*), PARAMETER :: RoutineName='VERTICAL_EMISS_FACTORS'
+
+!LP_Start
+REAL :: original_profile(6)
+REAL :: full_profile(7)
+!LP_End
 
 ! End of header
 
@@ -276,14 +373,43 @@ CASE ('EMEP_modified_SNAP10')
   !   as done by Mailler et al. (2013, ACP). These are percentages which will
   !   be divided by 100 below in the code.
   !
+
 CASE ('Bieser_modified_SNAP01')
   vert_scaling_ref (:) = [  0.0,  0.0, 0.25, 51.0, 45.3, 3.25, 0.2 ]
+  
+  !LP_Start SNAP01 profile
+  IF(ukca_config%l_acure_so2_inject_height) THEN
+    original_profile = [0.0, 0.25, 51.0, 45.3, 3.25, 0.2]
+    CALL shift_emission_profile(original_profile, ukca_config%acure_so2_inject_height, full_profile)
+    vert_scaling_ref(:) = full_profile(:)
+  ENDIF
+  
+  IF(ukca_config%l_acure_so2_inject_height) THEN
+    WRITE(umMessage,'(A, F6.3, A, 7F6.3)') 'A-CURE_Verbose acure_so2_inject_height =',    &
+        ukca_config%acure_so2_inject_height,' vert_scaling_ref(:) = ',vert_scaling_ref(:)
+    CALL umPrint(umMessage,src='vertical_emiss_factors')
+  ENDIF
+  !LP_End
 
 CASE ('Bieser_modified_SNAP02')
   vert_scaling_ref (:) = [ 11.0, 89.0, 0.0,   0.0,  0.0,  0.0, 0.0 ]
 
 CASE ('Bieser_modified_SNAP03')
   vert_scaling_ref (:) = [  0.0, 21.3, 75.4,  3.3,  0.0,  0.0, 0.0 ]
+  
+  !LP_Start SNAP03 profile
+  IF(ukca_config%l_acure_so2_inject_height) THEN
+    original_profile = [21.3, 75.4,  3.3,  0.0,  0.0, 0.0]
+    CALL shift_emission_profile(original_profile, ukca_config%acure_so2_inject_height/3.0, full_profile)
+    vert_scaling_ref(:) = full_profile(:)
+  ENDIF
+  
+  IF(ukca_config%l_acure_so2_inject_height) THEN
+    WRITE(umMessage,'(A, F6.3, A, 7F6.3)') 'A-CURE_Verbose acure_so2_inject_height =',    &
+        ukca_config%acure_so2_inject_height,' vert_scaling_ref(:) = ',vert_scaling_ref(:)
+    CALL umPrint(umMessage,src='vertical_emiss_factors')
+  ENDIF
+  !LP_End
 
 CASE ('Bieser_modified_SNAP04')
   vert_scaling_ref (:) = [ 20.0, 70.0, 7.0,   3.0,  0.0,  0.0, 0.0 ]
@@ -992,7 +1118,7 @@ ELSE IF (TRIM(special_units) == 'expressed_as_sulfur'  .OR.                    &
   CASE ('DMS')
     ! Convert from kg(S) to kg(DMS)
     base_scaling = m_dms / m_s
-  CASE ('SO2_low', 'SO2_high', 'SO2_nat', 'SO2')
+  CASE ('SO2_low', 'SO2_high', 'SO2_nat', 'SO2', 'SO2_biom')
     ! Convert from kg(S) to kg(SO2)
     base_scaling = m_so2 / m_s
   CASE DEFAULT

@@ -1320,7 +1320,7 @@ IF (glomap_config%l_bug_repro_tke_index) THEN
   DO k=2, bl_levels
     sigw(:,:,k)=MAX(glomap_config%sigwmin,(two_thirds*bl_tke(:,:,k-1))**0.5)
     ! Apply scaling to updraught velocity
-    IF (ukca_config%l_ukca_scale_ppe) THEN
+    IF (ukca_config%l_sigma_updraught_scaling) THEN
       sigw(:,:,k) = sigw(:,:,k) * glomap_config%sigma_updraught_scaling
     END IF
   END DO
@@ -1331,7 +1331,7 @@ ELSE
   DO k=1, bl_levels - 1
     sigw(:,:,k)=MAX(glomap_config%sigwmin,(two_thirds*bl_tke(:,:,k))**0.5)
     ! Apply scaling to updraught velocity
-    IF (ukca_config%l_ukca_scale_ppe) THEN
+    IF (ukca_config%l_sigma_updraught_scaling) THEN
       sigw(:,:,k) = sigw(:,:,k) * glomap_config%sigma_updraught_scaling
     END IF
   END DO

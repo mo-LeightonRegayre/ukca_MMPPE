@@ -71,7 +71,8 @@ SUBROUTINE ukca_aero_ctl(i_month, i_day_number,                                &
                 dryox_in_aer,                                                  &
                 wetox_in_aer,                                                  &
                 all_ntp,                                                       &
-                nseg, nbox_s, ncol_s, lbase, stride_s                          &
+                nseg, nbox_s, ncol_s, lbase, stride_s,                         &
+                L_stratosphere                                                 &
                 )
 
 USE ukca_um_legacy_mod, ONLY: stashcode_glomap_sec,                            &
@@ -349,6 +350,9 @@ INTEGER, INTENT(IN) :: lbase(nseg)    ! the box where the seg starts in 3d array
 INTEGER, INTENT(IN) :: ncol_s(nseg)   ! the number of columns in each segment
 INTEGER, INTENT(IN) :: nbox_s(nseg)   ! the size of each segment (grid-boxes)
 
+!Yao: Stratosphere flag (same as used in ukca_hetero_mod)
+LOGICAL, INTENT(IN) :: L_stratosphere(row_length, rows, model_levels)
+
 ! Local variables
 
 ! Caution - pointers to TYPE glomap_variables%
@@ -608,6 +612,8 @@ REAL :: seg_fconv_conv(nbox)
 REAL :: seg_height(nbox)
 ! Diagnostic to hold heterogeneous rates for tropospheric chemistry
 REAL :: seg_het_rates(nbox * nhet)
+!Yao: Flag to indicate stratospheric points
+LOGICAL :: seg_stratflag(nbox)
 ! Height of boundary-layer in gridbox vertical-column
 REAL :: seg_htpblg(nbox)
 ! Fraction of horizontal gridbox area covered by land
@@ -686,6 +692,8 @@ REAL :: seg_vconc(nbox * nmodes)
 REAL :: seg_vfac(nbox)
 ! Geometric mean wet diameter of particles in each mode (m)
 REAL :: seg_wetdp(nbox * nmodes)
+! Yao fix trop_hetchem bug, the wet radius is used in the trop_hetchem module
+REAL :: seg_wetrp(nbox * nmodes)
 ! Geometric mean wet volume of particles in each mode (m^3)
 REAL :: seg_wvol(nbox * nmodes)
 ! Background conc. of H2O2 (molecules per cc)
@@ -1218,6 +1226,14 @@ END IF   ! firstcall
 ! the all_ntp array is at end of segment loop in this case to accumulate SA
 i = name2ntpindex('surfarea  ')
 all_ntp(i)%data_3d(:, :, :) = 0.0
+! Yao: Initialize heterogeneous reaction rate arrays to zero to prevent
+!      old values from previous timesteps persisting in stratosphere
+IF (ukca_config%l_ukca_trophet) THEN
+  i = name2ntpindex('het_n2o5  ')
+  IF (i > 0) all_ntp(i)%data_3d(:, :, :) = 0.0
+  i = name2ntpindex('het_ho2   ')
+  IF (i > 0) all_ntp(i)%data_3d(:, :, :) = 0.0
+END IF
 n_merge_3d(:, :, :, :) = 0
 ! temporary clumping of autoconv variables for later segment extraction
 a3d_tmp(:, :, :) = autoconv(:, :, :) + accretion(:, :, :) +                    &
@@ -1237,6 +1253,7 @@ IF ( ( glomap_config%i_ukca_activation_scheme == i_ukca_activation_arg )       &
   drydiam(:, :, :, :) = 0.0
 END IF
 
+! Yao declares L_stratosphere as SHARED
 !
 ! OpenMP parallel region starts here (loop later around IK segments)
 !
@@ -1323,7 +1340,8 @@ END IF
 !$OMP rainout_on, rgas, rh3d, rh3d_clr, root2, row_length, rows,               &
 !$OMP sea_ice_frac, scale_delso2, sigmag, stride_s, temp, u_s,                 &
 !$OMP ukca_config, ukcaD1codes, verbose, verbose_local,                        &
-!$OMP wetdp_diag, wetox_in_aer, z0m, z_half_alllevs, zbl)                      &
+!$OMP wetdp_diag, wetox_in_aer, z0m, z_half_alllevs, zbl,                      &
+!$OMP L_stratosphere)                                                          &
 !$OMP     PRIVATE(cmessage, dp0, errcode,                                      &
 !$OMP             ifirst, i, i_end, i_end_cp, i_start, i_start_cp,             &
 !$OMP             ic, icp, ik, itra, iaer, imode, j, jl, jl2, jv, k,           &
@@ -1341,10 +1359,10 @@ END IF
 !$OMP             seg_nbadmdt, seg_nd, seg_plower, seg_pmid, seg_pupper,       &
 !$OMP             seg_pvol, seg_pvol_wat, seg_rh, seg_rh_clr, seg_rhoa,        &
 !$OMP             seg_rhopar, seg_s, seg_s0, seg_s0_dot_condensable,           &
-!$OMP             seg_sarea, seg_seaice, seg_sm, seg_surtp, seg_t,             &
-!$OMP             seg_tr_rs, seg_tsqrt, seg_ustr, seg_v1d_tmp, seg_vba,        &
-!$OMP             seg_vconc, seg_vfac, seg_wetdp, seg_wvol, seg_zh2o2,         &
-!$OMP             seg_zho2, seg_znotg, seg_zo3,                                &
+!$OMP             seg_sarea, seg_seaice, seg_sm, seg_stratflag, seg_surtp,     &
+!$OMP             seg_t, seg_tr_rs, seg_tsqrt, seg_ustr, seg_v1d_tmp, seg_vba, &
+!$OMP             seg_vconc, seg_vfac, seg_wetdp, seg_wetrp, seg_wvol,         &
+!$OMP             seg_zh2o2, seg_zho2, seg_znotg, seg_zo3,                     &
 !$OMP             y)
 
 ! dealing with non-uniform segments
@@ -2253,6 +2271,10 @@ DO ik = 1, nseg
         ! So multiply by 1.0e+4 to convert from m^2 / cm^3 to cm^2 / cm^3
         seg_sarea(jl2) = pi * 1.0e+4 * seg_nd(jl2) * (seg_wetdp(jl2)**2) *     &
                          y(imode)
+        ! Yao calculate the wet radius for the trop_hetchem module
+        ! multiply by 100.0 to convert wet radius from m to cm
+        seg_wetrp(jl2) = seg_wetdp(jl2) * 0.5 * 100.0
+        
       END DO
     END IF     ! mode(imode)
   END DO       ! imode = 1, nmodes
@@ -2382,7 +2404,8 @@ DO ik = 1, nseg
   ! Calculate heterogeneous rate coeffs for tropospheric chemistry
   IF (ukca_config%l_ukca_trophet) THEN
     CALL ukca_trop_hetchem(nbs,nhet, seg_t,seg_rh, seg_aird,                   &
-                           seg_pvol, seg_wetdp, seg_sarea, seg_het_rates)
+                           seg_pvol, seg_wetrp, seg_sarea, seg_stratflag,      &
+                           seg_het_rates)
     ! Now copy the het_rates into the all_ntp array
     CALL select_array_segment(nbs, 1,  ihet_n2o5, i_start, i_end)
     i = name2ntpindex('het_n2o5  ')
@@ -4588,6 +4611,20 @@ END DO  ! ik loop over segments
 !
 ! End of OpenMP
 
+! Yao: Post-process tropospheric N2O5 heterogeneous reaction rates to ensure
+!      they are zero in the stratosphere (similar to height-based filtering)
+!      This provides an additional safety net to catch any small values
+!      that may have slipped through the filtering in ukca_trop_hetchem
+!      Note: HO2 reactions are allowed in stratosphere, so they are not zeroed here
+IF (ukca_config%l_ukca_trophet) THEN
+  i = name2ntpindex('het_n2o5  ')
+  IF (i > 0) THEN
+    WHERE (L_stratosphere)
+      all_ntp(i)%data_3d(:, :, :) = 0.0
+    END WHERE
+  END IF
+END IF
+
 ! Deallocate lookup tables in dust impaction scavenging routine
 IF (l_dust_slinn_impc_scav) CALL ukca_impc_scav_dust_dealloc()
 
@@ -4783,6 +4820,41 @@ DO ic = 1, ncol           ! loop over columns on the segment
 END DO
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName, zhook_out, zhook_handle)
 END SUBROUTINE extract_seg
+!
+SUBROUTINE extract_seg_logical(lbase, ncol, nb, stride, nl, a, b)
+! Yao: This puts the elements of a 3D logical array and packs it into a segment (of columns)
+IMPLICIT NONE
+INTEGER,INTENT(IN) :: lbase   ! Address of base of first column in segment
+INTEGER,INTENT(IN) :: ncol    ! Number of columns in this segment
+INTEGER,INTENT(IN) :: nb      ! The number of boxes in this segment
+INTEGER,INTENT(IN) :: stride  ! The number of columns on the MPI task
+INTEGER,INTENT(IN) :: nl      ! The number of model levels
+LOGICAL,INTENT(IN) :: a(stride*nl)    ! the 3D data from which a column is taken
+LOGICAL,INTENT(IN OUT) :: b(nb)       ! segment made up from columns
+
+! local loop iterators
+INTEGER :: ic, l, ia, ib
+
+INTEGER(KIND=jpim), PARAMETER :: zhook_in  = 0
+INTEGER(KIND=jpim), PARAMETER :: zhook_out = 1
+REAL(KIND=jprb)               :: zhook_handle
+
+CHARACTER(LEN=*), PARAMETER :: RoutineName = 'EXTRACT_SEG_LOGICAL'
+IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName, zhook_in, zhook_handle)
+ia = lbase                ! the address of base of 1st column on segment
+ib = 1
+
+DO ic = 1, ncol           ! loop over columns on the segment
+  DO l = 1, nl            ! climb a column
+    b(ib) = a(ia)         ! copy the data into the shorter vector
+    ib = ib + 1           ! next location in segment
+    ia = ia + stride      ! next location in unrolled 3D array
+  END DO
+  ia = lbase + ic         ! start of base of next column
+END DO
+IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName, zhook_out, zhook_handle)
+END SUBROUTINE extract_seg_logical
+!Yao:finish extracting seg_stratflag
 !
 SUBROUTINE insert_seg(lbase, ncol, nb, stride, nl, b, a)
 ! This subroutine puts the elements of the segment vector back into the 3D array

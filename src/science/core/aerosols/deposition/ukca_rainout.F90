@@ -343,7 +343,7 @@ DO jl=1,nbox
     END IF  !inucscav=3
 
     ! Apply parameter scaling for accumulation and coarse modes
-    IF (ukca_config%l_ukca_scale_ppe) THEN
+    IF (ukca_config%l_acc_cor_scav_scaling) THEN
       rscav(3)  = rscav(3) * glomap_config%acc_cor_scav_scaling    ! acc mode
       rscav(4)  = rscav(4) * glomap_config%acc_cor_scav_scaling    ! cor mode
       rscavm(3) = rscavm(3) * glomap_config%acc_cor_scav_scaling    ! acc mode

@@ -490,9 +490,16 @@ IF (ukca_config%i_ukca_hetconfig == 0) THEN
     rk(:,n_hocl_hcl) = hk(:,3)
   END IF
 
+  ! Yao: Only filter N2O5+H2O reaction by stratflag to prevent double-counting
+  !      with ukca_trop_hetchem which handles tropospheric N2O5+H2O reactions
+  !      Other N2O5 reactions (N2O5+HCl) remain unchanged
   IF (n_n2o5_h2o > 0) THEN
     ! 4. N2O5 + H2O -> 2 HNO3
-    rk(:,n_n2o5_h2o) = hk(:,4)
+    WHERE (stratflag)
+      rk(:,n_n2o5_h2o) = hk(:,4)
+    ELSE WHERE
+      rk(:,n_n2o5_h2o) = 0.0
+    END WHERE
   END IF
 
   IF (n_n2o5_hcl > 0) THEN
@@ -547,7 +554,14 @@ ELSE ! New config
         !              3.1  SIMPLE PSC SCHEME
         IF (gpsimp) THEN
           !         Zero order PSC rates.
-          kpsc(1:n_points, jh) = 4.6e-5 * fpsc1(1:n_points)
+          !         Yao: Only filter N2O5+H2O reactions (jh=4) by stratflag
+          IF (jh == 4) THEN
+            WHERE (stratflag)  ! Only process stratospheric points for N2O5
+              kpsc(1:n_points, jh) = 4.6e-5 * fpsc1(1:n_points)
+            END WHERE
+          ELSE
+            kpsc(1:n_points, jh) = 4.6e-5 * fpsc1(1:n_points)
+          END IF
           !
         ELSE
           !          3.2  CALCULATE SURFACE AREA OF PSC'S
@@ -560,20 +574,49 @@ ELSE ! New config
           psc2sa(1:n_points) = m_h2o*amu*3.0e5 * sh2o(1:n_points)/(rho2*rad2)
           !
           !           Rate on type 1 and 2
+          !           Yao: Only filter N2O5+H2O reactions (jh=4) by stratflag
           IF (gam1(jh) >= 1.0) THEN  ! reaction uses calculated gamma
-            kpsc(1:n_points, jh) = c_cf(1:n_points)* psc1sa(1:n_points) *      &
+            IF (jh == 4) THEN
+              WHERE (stratflag)  ! Only process stratospheric points for N2O5
+                kpsc(1:n_points, jh) = c_cf(1:n_points)* psc1sa(1:n_points) *      &
+                                   gam_calc(1:n_points,INT(gam1(jh)))
+              END WHERE
+            ELSE
+              kpsc(1:n_points, jh) = c_cf(1:n_points)* psc1sa(1:n_points) *      &
                                  gam_calc(1:n_points,INT(gam1(jh)))
+            END IF
           ELSE
-            kpsc(1:n_points, jh) = c_cf(1:n_points)*psc1sa(1:n_points)*gam1(jh)
+            IF (jh == 4) THEN
+              WHERE (stratflag)  ! Only process stratospheric points for N2O5
+                kpsc(1:n_points, jh) = c_cf(1:n_points)*psc1sa(1:n_points)*gam1(jh)
+              END WHERE
+            ELSE
+              kpsc(1:n_points, jh) = c_cf(1:n_points)*psc1sa(1:n_points)*gam1(jh)
+            END IF
           END IF
 
           IF (gam2(jh) >= 1.0) THEN  ! reaction uses calculated gamma
-            kpsc(1:n_points, jh) = kpsc(1:n_points, jh) +                      &
+            IF (jh == 4) THEN
+              WHERE (stratflag)  ! Only process stratospheric points for N2O5+H2O
+                kpsc(1:n_points, jh) = kpsc(1:n_points, jh) +                      &
+                                     c_cf(1:n_points) * psc2sa(1:n_points)*      &
+                                     gam_calc(1:n_points,INT(gam2(jh)))
+              END WHERE
+            ELSE
+              kpsc(1:n_points, jh) = kpsc(1:n_points, jh) +                      &
                                    c_cf(1:n_points) * psc2sa(1:n_points)*      &
                                    gam_calc(1:n_points,INT(gam2(jh)))
+            END IF
           ELSE
-            kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*    &
+            IF (jh == 4) THEN
+              WHERE (stratflag)  ! Only process stratospheric points for N2O5+H2O
+                kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*    &
+                                     psc2sa(1:n_points)*gam2(jh)
+              END WHERE
+            ELSE
+              kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*    &
                                    psc2sa(1:n_points)*gam2(jh)
+            END IF
           END IF
         END IF
       END IF
@@ -581,13 +624,22 @@ ELSE ! New config
       !          4.  AEROSOL REACTIONS
       !              ------- ---------
       !        If required, include the reactions on the sulphate aerosols.
+      !        Yao: Only filter N2O5+H2O reaction (jh=4) on sulfate aerosol by stratflag
+      !        to avoid double-counting with ukca_trop_hetchem which handles troposphere
       IF (ukca_config%i_ukca_hetconfig > 0) THEN
         IF ( jh <= 3 .OR. jh == 8) THEN  ! reaction uses calculated gamma
           kpsc(1:n_points ,jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*      &
                                  100.0*za(1:n_points) * gam3calc(1:n_points, jh)
         ELSE                ! reaction uses constant gamma
-          kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*      &
+          IF (jh == 4) THEN  ! N2O5 + H2O on sulfate aerosol
+            WHERE (stratflag)  ! Only process stratospheric points for N2O5
+              kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*      &
+                                   100.0*za(1:n_points) * gam3(jh)
+            END WHERE
+          ELSE
+            kpsc(1:n_points, jh) = kpsc(1:n_points, jh) + c_cf(1:n_points)*      &
                                  100.0*za(1:n_points) * gam3(jh)
+          END IF
         END IF
       END IF
 
@@ -643,6 +695,8 @@ ELSE ! New config
   END IF  !  If heterogeneous processes are on
 
   ! divide rates by h2o/hcl/hbr as asad treats psc reactions as bimolecular
+  ! Yao: Only filter N2O5+H2O reaction by stratflag to prevent double-counting
+  !      Other N2O5 reactions (N2O5+HCl, N2O5+HBr) remain unchanged
   WHERE ( zhcl > peps )
     rk(:,n_clono2_hcl) = kpsc(:,1) / zhcl
     rk(:,n_hocl_hcl) = kpsc(:,3) / zhcl
@@ -659,13 +713,18 @@ ELSE ! New config
 
   WHERE ( zh2o > peps )
     rk(:,n_clono2_h2o) = kpsc(:,2) / zh2o
-    rk(:,n_n2o5_h2o) = kpsc(:,4) / zh2o
     rk(:,n_brono2_h2o) = kpsc(:,8) / zh2o
   ELSE WHERE
     rk(:,n_clono2_h2o) = 0.0
-    rk(:,n_n2o5_h2o) = 0.0
     rk(:,n_brono2_h2o) = 0.0
   END WHERE
+  IF (n_n2o5_h2o > 0) THEN
+    WHERE ( zh2o > peps .AND. stratflag )
+      rk(:,n_n2o5_h2o) = kpsc(:,4) / zh2o
+    ELSE WHERE
+      rk(:,n_n2o5_h2o) = 0.0
+    END WHERE
+  END IF
 
   WHERE ( zhbr > peps )
     rk(:,n_hobr_hbr) = kpsc(:,9) / zhbr

@@ -106,7 +106,8 @@ USE ukca_environment_fields_mod, ONLY:                                         &
     dust_div4,              dust_div5,            dust_div6,                   &
     interf_z,               grid_surf_area,       grid_area_fullht,            &
     grid_volume,            photol_rates,         ext_cg_flash,                &
-    ext_ic_flash,           co2_interactive,      grid_airmass
+    ext_ic_flash,           co2_interactive,      grid_airmass,                &
+    acure_ems_region
 
 USE ukca_pr_inputs_mod, ONLY: ukca_pr_inputs
 
@@ -915,6 +916,7 @@ IF (l_first_call) THEN
     IF (.NOT. ukca_config%l_ukca_emissions_off) THEN
       IF ( ( ANY(em_chem_spec == 'SO2_high  ') .OR.                            &
              ANY(em_chem_spec == 'SO2_nat   ') .OR.                            &
+             ANY(em_chem_spec == 'SO2_biom   ') .OR.                           &
              ANY(em_chem_spec == 'SO2_low   ') ) .AND.                         &
            ( ukca_config%mode_parfrac < 0.0 .OR.                               &
              ukca_config%mode_parfrac > 5.0) ) THEN
@@ -2201,7 +2203,8 @@ IF (ukca_config%l_ukca_chem .OR. ukca_config%l_ukca_mode) THEN
         all_tracers(:,:,:,1:n_chem_tracers+n_aero_tracers+n_mode_tracers),     &
         ext_cg_flash, ext_ic_flash,                                            &
         SIZE(stashwork38), stashwork38,                                        &
-        SIZE(stashwork50), stashwork50)
+        SIZE(stashwork50), stashwork50,                                        &
+        acure_ems_region(1:row_length, 1:rows))
 
     IF (error_code_ptr > 0) THEN
       IF (lhook) THEN
@@ -2799,6 +2802,7 @@ IF (do_aerosol) THEN
   !!!! hence the subrange 1:model_levels is specified. This relates to a
   !!!! bug controlled by the temporary logical l_fix_ukca_cloud_frac and can be
   !!!! removed once the bug fix is no longer conditional on this logical
+   !!! Yao add L_stratosphere to ukca_aero_ctl()
   CALL ukca_aero_ctl(i_month, i_day_number, i_hour,                            &
        INT(r_minute - ukca_config%timestep/60.0),                              &
        REAL(ukca_config%chem_timestep),                                        &
@@ -2838,7 +2842,8 @@ IF (do_aerosol) THEN
        uph2so4inaer,                                                           &
        wetox_in_aer,                                                           &
        all_ntp,                                                                &
-       nseg, nbox_s, ncol_s, lbase, stride_seg                                 &
+       nseg, nbox_s, ncol_s, lbase, stride_seg,                                &
+       L_stratosphere                                                          &
        )
 
 #if !defined(LFRIC)

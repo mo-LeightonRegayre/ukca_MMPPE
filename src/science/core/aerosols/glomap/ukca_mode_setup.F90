@@ -306,11 +306,12 @@ SUBROUTINE ukca_mode_allcp_4mode ( glomap_variables_local,                     &
                                    l_fix_nacl_density_in,                      &
                                    l_fix_ukca_hygroscopicities_in,             &
                                    l_dust_ageing_on )
-
+                                   
 ! ---------------------------------------------------------------------|
 !  Subroutine to define modes and components with all components
 !  switched on but only 4 modes used.
 ! ---------------------------------------------------------------------|
+
 IMPLICIT NONE
 
 ! Arguments
@@ -469,6 +470,7 @@ END DO
 ! Petters and Kreidenweis, Atmos Chem Phys. 2007
 ! kappa values for components: 0.61,0.0,0.1,1.5,0.0,0.1
 ! conversion: no_ions = kappa*(rho_water/rhocomp)*(mm/mm_water)
+
 IF (l_fix_ukca_hygroscopicities_in .AND.                                       &
    l_fix_nacl_density_in) THEN
   glomap_variables_local%no_ions(1:ncp)=[1.88,0.0,0.06,2.23,0.0,0.06]
@@ -477,6 +479,7 @@ ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
 ELSE
   glomap_variables_local%no_ions(1:ncp)=[3.0,0.0,0.0,2.0,0.0,0.0]
 END IF
+
 
 glomap_variables_local%fracbcem=[0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0]
 glomap_variables_local%fracocem=[0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0]
@@ -1331,6 +1334,8 @@ SUBROUTINE ukca_mode_sussbcoc_5mode( glomap_variables_local,                   &
                                      i_tune_bc_in,                             &
                                      l_fix_nacl_density_in,                    &
                                      l_fix_ukca_hygroscopicities_in,           &
+                                     l_acure_kappa_oc_in,                      &
+                                     acure_kappa_oc_in,                        &
                                      l_dust_ageing_on )
 ! ---------------------------------------------------------------------|
 !  Subroutine to define modes and components for version with
@@ -1346,6 +1351,8 @@ LOGICAL,                     INTENT(IN)     :: l_radaer_in
 INTEGER,                     INTENT(IN)     :: i_tune_bc_in
 LOGICAL,                     INTENT(IN)     :: l_fix_nacl_density_in
 LOGICAL,                     INTENT(IN)     :: l_fix_ukca_hygroscopicities_in
+LOGICAL,                     INTENT(IN)     :: l_acure_kappa_oc_in
+REAL,                        INTENT(IN)     :: acure_kappa_oc_in
 LOGICAL,                     INTENT(IN)     :: l_dust_ageing_on
 
 ! Local variables
@@ -1356,6 +1363,7 @@ INTEGER :: ncp
 
 ! specifies average (rho/mm) for default composition given by mfrac_0
 REAL :: rhommav
+REAL :: no_ions_temp
 
 INTEGER(KIND=jpim), PARAMETER :: zhook_in  = 0
 INTEGER(KIND=jpim), PARAMETER :: zhook_out = 1
@@ -1493,14 +1501,46 @@ END DO
 ! l_fix_ukca_hygroscopicities logical uses kappa-Kohler theory
 ! Petters and Kreidenweis, Atmos Chem Phys. 2007
 ! kappa values for components: 0.61,0.0,0.1,1.5,0.0,0.1
-IF (l_fix_ukca_hygroscopicities_in .AND.                                       &
-   l_fix_nacl_density_in) THEN
-  glomap_variables_local%no_ions(1:ncp)=[1.88,0.0,0.06,2.23,0.0,0.06]
-ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
-  glomap_variables_local%no_ions(1:ncp)=[1.88,0.0,0.06,3.04,0.0,0.06]
+
+!!LP_Start
+
+IF(l_acure_kappa_oc_in) THEN
+  !Overwrite value of no_ions using kappa_oc assuming
+  no_ions_temp = acure_kappa_oc_in / 1.667
+  IF (l_fix_ukca_hygroscopicities_in .AND.                                     &
+     l_fix_nacl_density_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [1.88,0.0,no_ions_temp,2.23,0.0,0.06]
+    
+  ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [1.88,0.0,no_ions_temp,3.04,0.0,0.06]
+  ELSE
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [3.0,0.0,no_ions_temp,2.0,0.0,0.0]
+  END IF
+  
 ELSE
-  glomap_variables_local%no_ions(1:ncp)=[3.0,0.0,0.0,2.0,0.0,0.0]
+  IF (l_fix_ukca_hygroscopicities_in .AND.                                     &
+     l_fix_nacl_density_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [1.88,0.0,0.06,2.23,0.0,0.06]
+  ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [1.88,0.0,0.06,3.04,0.0,0.06]
+  ELSE
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [3.0,0.0,0.0,2.0,0.0,0.0]
+  END IF
 END IF
+
+IF(l_acure_kappa_oc_in) THEN  !KP No verbose as not passed in
+  WRITE(umMessage,'(A, F6.3, A, 6F6.3)') 'A-CURE_Verbose acure_kappa_oc =',    &
+      acure_kappa_oc_in,' no_ions = ',glomap_variables_local%no_ions(1:ncp)
+  CALL umPrint(umMessage, src='ukca_mode_setup')
+ENDIF
+
+!!LP_End
 
 !
 glomap_variables_local%fracbcem=[0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0]
@@ -2149,6 +2189,8 @@ SUBROUTINE ukca_mode_sussbcocntnh_5mode_7cpt( glomap_variables_local,          &
                                               i_tune_bc_in,                    &
                                               l_fix_nacl_density_in,           &
                                               l_fix_ukca_hygroscopicities_in,  &
+                                              l_acure_kappa_oc_in,             &
+                                              acure_kappa_oc_in,               &
                                               l_dust_ageing_on )
 ! ---------------------------------------------------------------------|
 !  Subroutine to define modes and components for version with
@@ -2168,6 +2210,8 @@ INTEGER,                     INTENT(IN)     :: i_tune_bc_in
 LOGICAL,                     INTENT(IN)     :: l_fix_nacl_density_in
 LOGICAL,                     INTENT(IN)     :: l_fix_ukca_hygroscopicities_in
 LOGICAL,                     INTENT(IN)     :: l_dust_ageing_on
+LOGICAL,                     INTENT(IN)     :: l_acure_kappa_oc_in
+REAL,                        INTENT(IN)     :: acure_kappa_oc_in
 
 ! Local variables
 
@@ -2177,6 +2221,9 @@ INTEGER :: ncp
 
 ! specifies average (rho/mm) for default composition given by mfrac_0
 REAL :: rhommav
+!!LP_Start
+REAL :: no_ions_temp
+!!LP_End
 
 INTEGER(KIND=jpim), PARAMETER :: zhook_in  = 0
 INTEGER(KIND=jpim), PARAMETER :: zhook_out = 1
@@ -2338,16 +2385,46 @@ END DO
 ! but then adjust kappa of NO3 to 0.83 to account for increased mass in
 ! NH4NO3. This extra mass adjusts the kappa of sulfate correctly down to
 ! ~0.61 when sulfate is ammonium bisulfate by itself
-IF (l_fix_ukca_hygroscopicities_in .AND.                                       &
-   l_fix_nacl_density_in) THEN
-  glomap_variables_local%no_ions(1:ncp)=                                       &
-    [2.25,0.0,0.06,2.23,0.0,0.06,1.9,2.56,0.0]
-ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
-  glomap_variables_local%no_ions(1:ncp)=                                       &
-    [2.25,0.0,0.06,3.04,0.0,0.06,1.9,2.56,0.0]
+
+!!LP_Start
+
+IF(l_acure_kappa_oc_in) THEN
+  !Overwrite value of no_ions using kappa_oc assuming
+  no_ions_temp = acure_kappa_oc_in / 1.667
+  IF (l_fix_ukca_hygroscopicities_in .AND.                                     &
+     l_fix_nacl_density_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [2.25,0.0,no_ions_temp,2.23,0.0,0.06,1.9,2.56,0.0]
+    
+  ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [2.25,0.0,no_ions_temp,3.04,0.0,0.06,1.9,2.56,0.0]
+  ELSE
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [3.0,0.0,no_ions_temp,2.0,0.0,0.0,2.0,2.0,2.0]
+  END IF
+  
 ELSE
-  glomap_variables_local%no_ions(1:ncp)=[3.0,0.0,0.0,2.0,0.0,0.0,2.0,2.0,2.0]
+  IF (l_fix_ukca_hygroscopicities_in .AND.                                     &
+     l_fix_nacl_density_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [2.25,0.0,0.06,2.23,0.0,0.06,1.9,2.56,0.0]
+  ELSE IF (l_fix_ukca_hygroscopicities_in) THEN
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [2.25,0.0,0.06,3.04,0.0,0.06,1.9,2.56,0.0]
+  ELSE
+    glomap_variables_local%no_ions(1:ncp)=                                     &
+    [3.0,0.0,0.0,2.0,0.0,0.0,2.0,2.0,2.0]
+  END IF
 END IF
+
+IF(l_acure_kappa_oc_in) THEN  !KP No verbose as not passed in
+  WRITE(umMessage,'(A, F6.3, A, 9F6.3)') 'A-CURE_Verbose acure_kappa_oc =',    &
+      acure_kappa_oc_in,' no_ions = ',glomap_variables_local%no_ions(1:ncp)
+  CALL umPrint(umMessage, src='ukca_mode_setup')
+ENDIF
+
+!!LP_End
 
 ! Fractions of primary BC/POM emissions to go to each mode at emission
 ! (emit into insoluble Aitken for this setup).

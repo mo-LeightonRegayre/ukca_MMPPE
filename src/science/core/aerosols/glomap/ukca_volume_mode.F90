@@ -251,7 +251,7 @@ REAL    :: massh2so4kg(nbox)
 REAL    :: masswaterkg(nbox)
 
 CHARACTER(LEN=errormessagelength) :: cmessage
-REAL, PARAMETER :: fhyg_aom=0.65
+!REAL, PARAMETER :: fhyg_aom=0.65 ! LR see KP comment below
 REAL, PARAMETER :: mm_age_org=0.150
 REAL, PARAMETER :: mm_pom=0.0168
 REAL, PARAMETER :: putls=1.5e4 ! set max pressure for UTLS region to 150hPa
@@ -263,6 +263,24 @@ REAL(KIND=jprb)               :: zhook_handle
 
 CHARACTER(LEN=*), PARAMETER :: RoutineName='UKCA_VOLUME_MODE'
 
+!!KP_Start
+! fhyg_aom is no longer defined as a parameter so it can be overwritten for acure
+!REAL, PARAMETER :: fhyg_aom=0.65
+REAL  :: fhyg_aom=0.65
+REAL  :: kappa_su = 0.6 ! Set just to weight water uptake of OC compared to SU.
+
+IF(glomap_config%l_acure_kappa_oc)THEN
+  ! kappa_su is the kappa of sulfate set to  0.6 above
+  fhyg_aom = glomap_config%acure_kappa_oc / kappa_su
+ENDIF
+
+IF(glomap_config%l_acure_kappa_oc)THEN
+  WRITE(umMessage, '(A,F6.3,A,F6.3)') 'A-CURE_Verbose acure_kappa_oc = ',glomap_config%acure_kappa_oc, &
+                     ' fhyg_aom = ',fhyg_aom
+  CALL umPrint(umMessage,src='ukca_volume_mode')
+ENDIF
+
+!!KP_End
 
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
 

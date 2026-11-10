@@ -64,6 +64,7 @@ USE ukca_setup_indices,    ONLY: ukca_indices_sv1,                             &
                                  ukca_indices_suss_4mode,                      &
                                  ukca_indices_orgv1_soto3,                     &
                                  ukca_indices_orgv1_soto3_no3,                 &
+                                 ukca_indices_orgv1_soto3_no3_isop,            &
                                  ukca_indices_orgv1_soto3_isop,                &
                                  ukca_indices_sussbcoc_5mode,                  &
                                  ukca_indices_sussbcoc_5mode_isop,             &
@@ -74,9 +75,11 @@ USE ukca_setup_indices,    ONLY: ukca_indices_sv1,                             &
                                  ukca_indices_duonly_2mode,                    &
                                  ukca_indices_sussbcocdu_7mode,                &
                                  ukca_indices_sussbcocntnh_5mode,              &
+                                 ukca_indices_sussbcocntnh_5mode_isop,         &
                                  ukca_indices_orgv1_soto3_solinsol,            &
                                  ukca_indices_solinsol_6mode,                  &
                                  ukca_indices_sussbcocduntnh_8mode_8cpt,       &
+                                 ukca_indices_sussbcocduntnh_8mode_8cpt_isop,  &
                                  ukca_indices_nochem
 
 USE umPrintMgr,            ONLY: umPrint, umMessage,                           &
@@ -210,10 +213,24 @@ IF (ukca_config%l_ukca_mode) THEN
     IF (glomap_config%i_mode_setup == i_sussbcoc_5mode) THEN
       CALL ukca_indices_orgv1_soto3_isop
       CALL ukca_indices_sussbcoc_5mode_isop
+    ELSE IF ( glomap_config%i_mode_setup == i_sussbcocntnh_5mode_7cpt ) THEN ! 10
+      IF ( glomap_config%l_no3_prod_in_aero_step ) THEN
+        CALL ukca_indices_orgv1_soto3_no3_isop
+      ELSE
+        CALL ukca_indices_orgv1_soto3_isop
+      END IF
+      CALL ukca_indices_sussbcocntnh_5mode_isop
+    ELSE IF (glomap_config%i_mode_setup == i_sussbcocduntnh_8mode_8cpt) THEN ! 12
+      IF ( glomap_config%l_no3_prod_in_aero_step ) THEN
+        CALL ukca_indices_orgv1_soto3_no3_isop
+      ELSE
+        CALL ukca_indices_orgv1_soto3_isop
+      END IF
+      CALL ukca_indices_sussbcocduntnh_8mode_8cpt_isop
     ELSE
       errcode     = 4
       cmessage    = 'Isoprene SOA (i_chem_version > 132)   '  //               &
-                   'only works with i_mode_setup=2 '
+                   'only works with i_mode_setup=2,10 and 12.'
       CALL ereport('UKCA_INIT', errcode, cmessage)
     END IF
   ELSE
@@ -274,7 +291,9 @@ IF (ukca_config%l_ukca_mode) THEN
                                    glomap_config%l_ukca_radaer,                &
                                    glomap_config%i_ukca_tune_bc,               &
                                    glomap_config%l_fix_nacl_density,           &
-                                   glomap_config%l_fix_ukca_hygroscopicities,  &
+                                   glomap_config%l_fix_ukca_hygroscopicities,  & 
+                                   glomap_config%l_acure_kappa_oc,             &
+                                   glomap_config%acure_kappa_oc,               &
                                    glomap_config%l_dust_ageing_on )
 
   ! Calculate number of aerosol tracers required for components and number
@@ -375,11 +394,46 @@ IF ( (glomap_config%biom_aer_ems_scaling < 0.0 .OR.                            &
   CALL ereport(RoutineName,errcode,cmessage)
 END IF
 
-! seadms_ems_scaling - valid range 0. - 10.
-IF ( (ukca_config%seadms_ems_scaling < 0.0 .OR.                                &
-      ukca_config%seadms_ems_scaling > 10.0) .AND.                             &
+! Biomass-burning BC emissions scaling - valid range 0.25 - 4.0.
+IF ( (glomap_config%biom_aer_ems_bc_scaling < 0.25 .OR.                        &
+      glomap_config%biom_aer_ems_bc_scaling > 4.0) .AND.                       &
+     glomap_config%l_ukca_scale_biom_aer_ems_bc ) THEN
+  cmessage='biom_aer_ems_bc_scaling should be between 0.25 - 4.0'
+  errcode = 1
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! Biomass-burning OC emissions scaling - valid range 0.25 - 4.0.
+IF ( (glomap_config%biom_aer_ems_oc_scaling < 0.25 .OR.                        &
+      glomap_config%biom_aer_ems_oc_scaling > 4.0) .AND.                       &
+     glomap_config%l_ukca_scale_biom_aer_ems_oc ) THEN
+  cmessage='biom_aer_ems_oc_scaling should be between 0.25 - 4.0'
+  errcode = 1
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! seadms_ems_scaling - valid range 0.2 - 3.0
+IF ( (ukca_config%seadms_ems_scaling < 0.2 .OR.                                &
+      ukca_config%seadms_ems_scaling > 3.0) .AND.                              &
      ukca_config%l_ukca_scale_seadms_ems ) THEN
-  cmessage='seadms_ems_scaling should be between 0.0 - 10.0'
+  cmessage='seadms_ems_scaling should be between 0.2 - 3.0'
+  errcode = 2
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! emi_ss_acc / emi_ss_coa - valid range 0.1 - 3.0
+IF ( (glomap_config%emi_ss_acc < 0.1 .OR.                                      &
+      glomap_config%emi_ss_acc > 3.0) .AND.                                    &
+     glomap_config%l_ukca_scale_emi_ss_acc ) THEN
+  cmessage='emi_ss_acc should be between 0.1 - 3.0'
+  errcode = 2
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+IF ( (glomap_config%emi_ss_coa < 0.1 .OR.                                      &
+      glomap_config%emi_ss_coa > 3.0) .AND.                                    &
+     glomap_config%l_ukca_scale_emi_ss_coa ) THEN
+  cmessage='emi_ss_coa should be between 0.1 - 3.0'
   errcode = 2
   CALL ereport(RoutineName,errcode,cmessage)
 END IF
@@ -876,7 +930,7 @@ END IF
 ! dry_depvel_so2_scaling - valid range 0. - 10.
 IF ( (ukca_config%dry_depvel_so2_scaling < 0.0 .OR.                            &
       ukca_config%dry_depvel_so2_scaling > 10.0) .AND.                         &
-     ukca_config%l_ukca_scale_ppe ) THEN
+     ukca_config%l_dry_depvel_so2_scaling ) THEN
   cmessage='dry_depvel_so2_scaling should be between 0.0 - 10.0'
   errcode = 51
   CALL ereport(RoutineName,errcode,cmessage)
@@ -885,7 +939,7 @@ END IF
 ! anth_so2_ems_scaling - valid range 0. - 10.
 IF ( (ukca_config%anth_so2_ems_scaling < 0.0 .OR.                              &
       ukca_config%anth_so2_ems_scaling > 10.0) .AND.                           &
-     ukca_config%l_ukca_scale_ppe ) THEN
+     ukca_config%l_anth_so2_ems_scaling ) THEN
   cmessage='anth_so2_ems_scaling should be between 0.0 - 10.0'
   errcode = 50
   CALL ereport(RoutineName,errcode,cmessage)
@@ -894,7 +948,7 @@ END IF
 ! dry_depvel_acc_scaling - valid range 0. - 10.
 IF ( (glomap_config%dry_depvel_acc_scaling < 0.0 .OR.                          &
       glomap_config%dry_depvel_acc_scaling > 10.0) .AND.                       &
-     ukca_config%l_ukca_scale_ppe ) THEN
+     ukca_config%l_dry_depvel_acc_scaling ) THEN
   cmessage='dry_depvel_acc_scaling should be between 0.0 - 10.0'
   errcode = 53
   CALL ereport(RoutineName,errcode,cmessage)
@@ -903,7 +957,7 @@ END IF
 ! acc_cor_scav_scaling - valid range 0. - 10.
 IF ( (glomap_config%acc_cor_scav_scaling < 0.0 .OR.                            &
       glomap_config%acc_cor_scav_scaling > 10.0) .AND.                         &
-     ukca_config%l_ukca_scale_ppe ) THEN
+     ukca_config%l_acc_cor_scav_scaling ) THEN
   cmessage='acc_cor_scav_scaling should be between 0.0 - 10.0'
   errcode = 54
   CALL ereport(RoutineName,errcode,cmessage)
@@ -912,14 +966,212 @@ END IF
 ! sigma_updraught_scaling - valid range 0. - 10.
 IF ( (glomap_config%sigma_updraught_scaling < 0.0 .OR.                         &
       glomap_config%sigma_updraught_scaling > 10.0) .AND.                      &
-     ukca_config%l_ukca_scale_ppe ) THEN
+     ukca_config%l_sigma_updraught_scaling ) THEN
   cmessage='sigma_updraught_scaling should be between 0.0 - 10.0'
   errcode = 52
   CALL ereport(RoutineName,errcode,cmessage)
 END IF
 
+! acure_prim_so4_diam - valid range 10. - 150.
+IF ( (ukca_config%acure_prim_so4_diam < 10.0 .OR.                               &
+      ukca_config%acure_prim_so4_diam > 150.0) .AND.                            &
+     ukca_config%l_acure_prim_so4_diam ) THEN
+  cmessage='acure_prim_so4_diam_scaling should be between 10.0 - 150.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_diam - valid range 90. - 500.
+IF ( (ukca_config%acure_carb_res_diam < 90.0 .OR.                               &
+      ukca_config%acure_carb_res_diam > 500.0) .AND.                            &
+     ukca_config%l_acure_carb_res_diam ) THEN
+  cmessage='acure_carb_res_diam_scaling should be between 90.0 - 500.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_bb_diam - valid range 25. - 250.
+IF ( (ukca_config%acure_carb_bb_diam < 25.0 .OR.                                &
+      ukca_config%acure_carb_bb_diam > 250.0) .AND.                             &
+     ukca_config%l_acure_carb_bb_diam ) THEN
+  cmessage='acure_carb_bb_diam_scaling should be between 25.0 - 250.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_ff_diam - valid range 15. - 45.
+IF ( (ukca_config%acure_carb_ff_diam < 15.0 .OR.                                &
+      ukca_config%acure_carb_ff_diam > 45.0) .AND.                              &
+     ukca_config%l_acure_carb_ff_diam ) THEN
+  cmessage='acure_carb_ff_diam_scaling should be between 15.0 - 45.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_so2_inject_height - valid range -100.0 - 150.
+IF ( (ukca_config%acure_so2_inject_height < -100.0 .OR.                         &
+      ukca_config%acure_so2_inject_height > 150.0) .AND.                        &
+     ukca_config%l_acure_so2_inject_height ) THEN
+  cmessage='acure_so2_inject_height_scaling should be between -100 - 150'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_volc_so2 - valid range 0.20 - 2.38
+IF ( (ukca_config%acure_volc_so2 < 0.2 .OR.                                    &
+      ukca_config%acure_volc_so2 > 2.38) .AND.                                 &
+     ukca_config%l_acure_volc_so2 ) THEN
+  cmessage='acure_volc_so2_scaling should be between 0.20 - 2.38'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_biom_so2 - valid range 0.25 - 4.0
+IF ( (ukca_config%acure_biom_so2 < 0.25 .OR.                                   &
+      ukca_config%acure_biom_so2 > 4.0) .AND.                                  &
+     ukca_config%l_acure_biom_so2 ) THEN
+  cmessage='acure_biom_so2 should be between 0.25 - 4.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_autoconv_exp_lwp - valid range 2.15 - 3.31
+IF ( (ukca_config%acure_autoconv_exp_lwp < 2.15 .OR.                            &
+      ukca_config%acure_autoconv_exp_lwp > 3.31) .AND.                          &
+     ukca_config%l_acure_autoconv_exp_lwp ) THEN
+  cmessage='acure_autoconv_exp_lwp_scaling should be between 2.15 - 3.31'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_autoconv_exp_nd - valid range -3 - -1
+IF ( (ukca_config%acure_autoconv_exp_nd < -3.0 .OR.                            &
+      ukca_config%acure_autoconv_exp_nd > -1.0) .AND.                          &
+     ukca_config%l_acure_autoconv_exp_nd ) THEN
+  cmessage='acure_autoconv_exp_nd_scaling should be between -3 - -1'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_bvoc_soa - valid range 0.32 - 3.68
+IF ( (ukca_config%acure_bvoc_soa < 0.32 .OR.                                   &
+      ukca_config%acure_bvoc_soa > 3.68) .AND.                                 &
+     ukca_config%l_acure_bvoc_soa ) THEN
+  cmessage='acure_bvoc_soa_scaling should be between 0.32 - 3.68'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_anth_so2_eur - valid range 0.60 - 1.50
+IF ( (ukca_config%acure_anth_so2_eur < 0.6 .OR.                                &
+      ukca_config%acure_anth_so2_eur > 2.0) .AND.                              &
+     ukca_config%l_acure_anth_so2 ) THEN
+  cmessage='acure_anth_so2_eur scaling should be between 0.60 - 2.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_anth_so2_nam - valid range 0.60 - 1.50
+IF ( (ukca_config%acure_anth_so2_nam < 0.6 .OR.                                &
+      ukca_config%acure_anth_so2_nam > 2.0) .AND.                              &
+     ukca_config%l_acure_anth_so2 ) THEN
+  cmessage='acure_anth_so2_nam scaling should be between 0.60 - 2.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_anth_so2_r - valid range 0.60 - 1.50
+IF ( (ukca_config%acure_anth_so2_r < 0.6 .OR.                                  &
+      ukca_config%acure_anth_so2_r > 2.0) .AND.                                &
+     ukca_config%l_acure_anth_so2 ) THEN
+  cmessage='acure_anth_so2_r scaling should be between 0.60 - 2.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_ems_bc_eur - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_bc_ems_eur < 0.6 .OR.                         &
+      ukca_config%acure_carb_res_bc_ems_eur > 2.0) .AND.                       &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_bc_ems_eur scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_bc_ems_r - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_bc_ems_r < 0.6 .OR.                           &
+      ukca_config%acure_carb_res_bc_ems_r > 2.0) .AND.                         &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_bc_ems_r scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_bc_ems_nam - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_bc_ems_nam < 0.6 .OR.                         &
+      ukca_config%acure_carb_res_bc_ems_nam > 2.0) .AND.                       &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_bc_ems_nam scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_ems_oc_eur - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_oc_ems_eur < 0.6 .OR.                         &
+      ukca_config%acure_carb_res_oc_ems_eur > 2.0) .AND.                       &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_oc_ems_eur scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_oc_ems_r - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_oc_ems_r < 0.6 .OR.                           &
+      ukca_config%acure_carb_res_oc_ems_r > 2.0) .AND.                         &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_oc_ems_r scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_res_oc_ems_nam - valid range 0.6 - 2.0
+IF ( (ukca_config%acure_carb_res_oc_ems_nam < 0.6 .OR.                         &
+      ukca_config%acure_carb_res_oc_ems_nam > 2.0) .AND.                       &
+     ukca_config%l_acure_carb_res_ems ) THEN
+  cmessage='acure_carb_res_oc_ems_nam scaling should be between 0.6 - 2'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_ff_bc_ems - valid range 0.60 - 2.0
+IF ( (ukca_config%acure_carb_ff_bc_ems < 0.6 .OR.                              &
+      ukca_config%acure_carb_ff_bc_ems > 2.0) .AND.                            &
+     ukca_config%l_acure_carb_ff_ems ) THEN
+  cmessage='acure_carb_ff_bc_ems scaling should be between 0.6 - 2.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_carb_ff_oc_ems - valid range 0.60 - 2.0
+IF ( (ukca_config%acure_carb_ff_oc_ems < 0.6 .OR.                              &
+      ukca_config%acure_carb_ff_oc_ems > 2.0) .AND.                            &
+     ukca_config%l_acure_carb_ff_ems ) THEN
+  cmessage='acure_carb_ff_oc_ems scaling should be between 0.6 - 2.0'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
+! acure_kappa_oc - valid range 0.2 - 0.65
+IF ( (glomap_config%acure_kappa_oc < 0.2 .OR.                                   &
+      glomap_config%acure_kappa_oc > 0.65) .AND.                                &
+     glomap_config%l_acure_kappa_oc ) THEN
+  cmessage='acure_kappa_oc should be between 0.2 - 0.65'
+  errcode = 51
+  CALL ereport(RoutineName,errcode,cmessage)
+END IF
+
 ! Check configuration if mode setup 6 is selected without chemistry
-IF ( ukca_config%l_ukca_mode .AND.                                             &
+IF ( ukca_config%l_ukca_mode .AND.                                              &
      (glomap_config%i_mode_setup == i_du_2mode)) THEN
   IF (ukca_config%l_ukca_chem) THEN
     cmessage='dust only setup does not work with chemistry'

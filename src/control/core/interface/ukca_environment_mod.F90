@@ -188,7 +188,8 @@ USE ukca_fieldname_mod,  ONLY:                                                 &
   fldname_lscat_zhang,                                                         &
   fldname_grid_area_fullht,                                                    &
   fldname_grid_volume,                                                         &
-  fldname_grid_airmass
+  fldname_grid_airmass,                                                        &
+  fldname_acure_ems_region
 
 USE ukca_environment_fields_mod, ONLY:                                         &
   environ_field_info,                                                          &
@@ -339,7 +340,8 @@ USE ukca_environment_fields_mod, ONLY:                                         &
   lscat_zhang,                                                                 &
   grid_area_fullht,                                                            &
   grid_volume,                                                                 &
-  grid_airmass
+  grid_airmass,                                                                &
+  acure_ems_region
 
 USE ukca_environment_req_mod, ONLY: environ_field_index,                       &
                                     l_environ_req_available
@@ -1124,6 +1126,8 @@ CASE (fldname_ext_cg_flash)
   CALL set_field_2d_real(i_field, i1, i2, j1, j2, field_data, ext_cg_flash)
 CASE (fldname_ext_ic_flash)
   CALL set_field_2d_real(i_field, i1, i2, j1, j2, field_data, ext_ic_flash)
+CASE (fldname_acure_ems_region)
+  CALL set_field_2d_real(i_field, i1, i2, j1, j2, field_data, acure_ems_region)
 CASE DEFAULT
   ! Error: Not a recognised 2-D (or 4-D) field
   IF ( .NOT. (ANY(fldnames_4d_real == varname)) ) THEN
@@ -2181,6 +2185,7 @@ IF (ALLOCATED(lscat_zhang)) DEALLOCATE(lscat_zhang)
 IF (ALLOCATED(grid_area_fullht)) DEALLOCATE(grid_area_fullht)
 IF (ALLOCATED(grid_volume)) DEALLOCATE(grid_volume)
 IF (ALLOCATED(grid_airmass)) DEALLOCATE(grid_airmass)
+IF (ALLOCATED(acure_ems_region)) DEALLOCATE(acure_ems_region)
 
 ! Update field availability
 l_environ_field_available(:) = .FALSE.

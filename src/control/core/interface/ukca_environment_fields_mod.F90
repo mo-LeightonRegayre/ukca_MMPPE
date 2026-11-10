@@ -219,6 +219,9 @@ REAL, ALLOCATABLE, TARGET, SAVE, PUBLIC :: ext_cg_flash(:,:)
   ! External cloud-to-ground flash rate [s-1]
 REAL, ALLOCATABLE, TARGET, SAVE, PUBLIC :: ext_ic_flash(:,:)
   ! External intracloud flash rate [s-1]
+!LP_Start
+REAL, ALLOCATABLE, TARGET, SAVE, PUBLIC :: acure_ems_region (:,:)
+!LP_End
 
 ! --- 2D fields of type integer ---
 INTEGER, ALLOCATABLE, TARGET, SAVE, PUBLIC :: kent(:,:)

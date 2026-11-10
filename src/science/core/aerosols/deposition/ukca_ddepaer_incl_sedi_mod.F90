@@ -556,7 +556,7 @@ DO imode=1,nmodes
       ! to its value. Otherwise use a default value of 1.0
       !  (IMODE 3, 6 are the solubale and insoluable accumulation modes)
       IF ( (imode == 3 .OR. imode == 6) .AND.                                  &
-          ukca_config%l_ukca_scale_ppe) THEN
+          ukca_config%l_dry_depvel_acc_scaling) THEN
         dry_depvel_acc_scalefactor = glomap_config%dry_depvel_acc_scaling
       ELSE
         dry_depvel_acc_scalefactor = 1.0

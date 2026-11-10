@@ -77,7 +77,7 @@ CHARACTER(LEN=*), PARAMETER, PRIVATE :: ModuleName='UKCA_TROP_HETCHEM_MOD'
 CONTAINS
 
 SUBROUTINE ukca_trop_hetchem(nbox, nhet, temp, rh, aird, pvol,                 &
-                             wetdp, sarea, het_rates)
+                             wetdp, sarea, stratflag, het_rates)
 
 IMPLICIT NONE
 
@@ -94,6 +94,7 @@ REAL, INTENT(IN)    :: pvol(nbox,nmodes,glomap_variables%ncp)
 ! .. solution volume according to fraction of total mass (including water)
 REAL, INTENT(IN)    :: wetdp(nbox,nmodes)   ! Mean wet radius for the mode [m]
 REAL, INTENT(IN)    :: sarea(nbox,nmodes)   ! Surface area concentn. [cm^2/cm^3]
+LOGICAL, INTENT(IN) :: stratflag(nbox)      ! Yao True for cells in stratosphere
 REAL, INTENT(OUT)   :: het_rates(nbox,nhet) ! rate coefficients
 
 ! Local variables
@@ -251,6 +252,12 @@ DO imode=1,nmodes
       IF ( (component(imode,icp)) .AND. (icp /= cp_nh4) ) THEN
         total_vol(:,imode) = total_vol(:,imode) +                              &
                             pvol(:,imode,icp)
+        ! Yao add Steven's check on total aerosol volume
+        WRITE(umMessage,'(A,2I0,3E15.6)')                                      &
+                      'total_vol: ',imode,icp,MAXVAL(total_vol(:,imode)),      &
+                      MINVAL(total_vol(:,imode)),                              &
+                      SUM(total_vol(:,imode))/SIZE(total_vol(:,imode))
+        CALL umPrint(umMessage,src='ukca_trop_hetchem')
       END IF
     END DO  ! end of loop over components
   END IF
@@ -264,6 +271,15 @@ DO imode=1,nmodes
   IF (mode(imode)) THEN
     DO icp=1,ncp
       IF ( (component(imode,icp)) .AND. (icp /= cp_nh4) ) THEN
+        ! Yao error trap for zero totals volumes to prevent NaN in frac_vol
+              WHERE (total_vol(:,imode) <= 0.0)
+                total_vol(:,imode) = 1e-60
+        END WHERE
+        WRITE(umMessage,'(A,2I0,3E15.6)')                                      &
+                      'total_vol_2: ',imode,icp,MAXVAL(total_vol(:,imode)),    &
+                      MINVAL(total_vol(:,imode)),                              &
+                      SUM(total_vol(:,imode))/SIZE(total_vol(:,imode))
+        CALL umPrint(umMessage,src='ukca_trop_hetchem')
         frac_vol(:,imode,icp) = pvol(:,imode,icp) /                            &
                                      total_vol(:,imode)
         IF (PrintStatus >= PrStatus_Diag) THEN
@@ -312,6 +328,14 @@ DO i=1,nhet
                              wetdp(:,imode), aird(:),                          &
                              mode_gamma(:,i,imode), temp(:),                   &
                              molec_weight(i))
+      ! Yao: Zero out mode_rate for stratospheric points only for N2O5 reactions
+      !      to prevent any small non-zero values from cal_loss1k propagating
+      !      HO2 reactions are allowed in both troposphere and stratosphere
+      IF (i == ihet_n2o5) THEN
+        WHERE (stratflag)
+          mode_rate(:,i,imode) = 0.0e0
+        END WHERE
+      END IF
       IF (PrintStatus >= PrStatus_Diag) THEN
         WRITE(umMessage,'(I0,3E15.6)')                                         &
             imode,MAXVAL(mode_rate(:,i,imode)),                                &
@@ -339,13 +363,28 @@ het_rates(:,:)=0.0e0
 DO i=1,nhet
   DO imode=1,nmodes
     IF (mode(imode)) THEN
-      WHERE (total_sa > 1.0e-30)
-        het_rates(:,i) = het_rates(:,i) + mode_rate(:,i,imode)
-      END WHERE
+      ! Yao: Only filter N2O5 reactions by stratflag. HO2 reactions allowed everywhere.
+      IF (i == ihet_n2o5) THEN
+        ! Only calculate N2O5 rates for tropospheric points (not stratosphere)
+        WHERE (total_sa > 1.0e-30 .AND. .NOT. stratflag)
+          het_rates(:,i) = het_rates(:,i) + mode_rate(:,i,imode)
+        END WHERE
+      ELSE
+        ! HO2 reactions allowed in both troposphere and stratosphere
+        WHERE (total_sa > 1.0e-30)
+          het_rates(:,i) = het_rates(:,i) + mode_rate(:,i,imode)
+        END WHERE
+      END IF
     END IF
   END DO
 END DO
 
+! Yao: Explicitly zero out N2O5 rates for stratospheric points to ensure
+!      tropospheric N2O5 reactions do not occur in stratosphere
+!      HO2 reactions are allowed in stratosphere
+WHERE (stratflag)
+  het_rates(:,ihet_n2o5) = 0.0e0
+END WHERE
 
 IF (PrintStatus >= PrStatus_Diag) THEN
   WRITE(umMessage,'(A,3E15.6)')                                                &

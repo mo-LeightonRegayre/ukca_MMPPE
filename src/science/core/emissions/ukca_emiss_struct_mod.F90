@@ -80,6 +80,8 @@ TYPE, PUBLIC :: ukca_em_struct
                                          ! which offline emissions are mapped.
   LOGICAL              :: l_mode_so2     ! Mode emission from SO2
   LOGICAL              :: l_mode_biom    ! Mode emission from biomass burning
+  LOGICAL              :: l_mode_fossil  ! Mode emission from fossil fuels LP
+  LOGICAL              :: l_mode_res     ! Mode emission from residential LP
 
   ! If l_mode = .TRUE. the following define the moment, mode, component the
   ! field applies to, and the name of the tracer which supplied the source
@@ -160,6 +162,8 @@ emissions(:)%daily_fact  = REPEAT(' ',20)
 emissions(:)%l_mode      = .FALSE.
 emissions(:)%l_mode_so2  = .FALSE.
 emissions(:)%l_mode_biom = .FALSE.
+emissions(:)%l_mode_fossil = .FALSE. !LP
+emissions(:)%l_mode_res = .FALSE. !LP
 emissions(:)%moment      = -1
 emissions(:)%mode        = -1
 emissions(:)%component   = -1
@@ -225,6 +229,8 @@ targ%daily_fact  = srce%daily_fact
 targ%l_mode      = srce%l_mode
 targ%l_mode_so2  = srce%l_mode_so2
 targ%l_mode_biom = srce%l_mode_biom
+targ%l_mode_fossil = srce%l_mode_fossil !LP
+targ%l_mode_res = srce%l_mode_res !LP
 targ%moment      = srce%moment
 targ%mode        = srce%mode
 targ%component   = srce%component

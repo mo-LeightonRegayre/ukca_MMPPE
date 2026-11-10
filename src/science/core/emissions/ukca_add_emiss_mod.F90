@@ -61,7 +61,8 @@ SUBROUTINE ukca_add_emiss (                                                    &
     we_lim_dsc,         t_frac_dsc,             zrzi_dsc,                      &
     ml_depth,           zhsc,                   z_half,                        &
     surf_area,          mass,                   tracers,                       &
-    len_stashwork50,stashwork50)
+    len_stashwork50,stashwork50,                                               &
+    acure_ems_region)
 
 USE ukca_um_legacy_mod,      ONLY: trsrce,                                     &
                                    ukca_volcanic_so2, copydiag,                &
@@ -85,7 +86,8 @@ USE ukca_config_defs_mod,    ONLY: n_use_emissions, em_chem_spec,              &
                                    n_boundary_vals, lbc_mmr, lbc_spec
 USE get_molmass_mod,         ONLY: get_molmass
 
-USE ukca_mode_setup,         ONLY: nmodes, cp_su, moment_number, moment_mass
+USE ukca_mode_setup,         ONLY: nmodes, cp_bc, cp_oc, cp_su,                &
+                                   moment_number, moment_mass
 
 USE ukca_mode_tracer_maps_mod, ONLY:  nmr_index, mmr_index
 USE ukca_setup_indices,      ONLY: msotwo, mm_gas
@@ -174,6 +176,9 @@ REAL, INTENT(IN OUT) :: stashwork50(len_stashwork50)
 REAL, INTENT(IN OUT) :: tracers (1:row_length, 1:rows, 1:model_levels,         &
                                 1:n_tracers)
 
+! ACURE REGIONAL MASK   
+REAL, INTENT(IN) :: acure_ems_region  (1:row_length, 1:rows)                             
+
 ! Plume height of explosive eruptions from Plumera
 REAL, INTENT(OUT) :: plumeria_height(1:row_length, 1:rows)
 REAL :: u_rho_levels_plumeria (1:row_length,1:rows,1:model_levels)
@@ -192,6 +197,10 @@ INTEGER, POINTER :: ncp
 
 
 INTEGER, PARAMETER  :: surface_level = 1
+
+! LR consider adding
+!INTEGER, PARAMETER :: cp_bc=2
+!INTEGER, PARAMETER :: cp_oc=3
 
 INTEGER, SAVE :: inox                 ! Index for NO/NOx tracer
 INTEGER, SAVE :: iso2                 ! Index for SO2 tracer
@@ -212,7 +221,10 @@ REAL :: em_field         (row_length, rows, model_levels, n_tracers)
 
 REAL :: em_field_2d      (row_length, rows)    ! 2D emiss field for a tracer
                                                ! at a given model level
-
+                                               
+REAL, SAVE, ALLOCATABLE :: aero_scaling_2d_anth_so2  (:, :)    ! 2D array for scaling anthropogenic so2 emissions. LP   
+REAL, SAVE, ALLOCATABLE :: aero_scaling_2d_carb_res_bc_ems  (:, :) ! 2D array for scaling carbonaceous emissions from residential sources. LP / LR                                 
+REAL, SAVE, ALLOCATABLE :: aero_scaling_2d_carb_res_oc_ems  (:, :) ! 2D array for scaling carbonaceous emissions from residential sources. LP / LR                                 
 REAL, SAVE, ALLOCATABLE :: molmass        (:)    ! molar masses
 REAL, SAVE, ALLOCATABLE :: lbc_molmass    (:)    ! molar masses for lower
                                                  ! boundary conditions
@@ -313,6 +325,42 @@ IF (firstcall) THEN
         iso2 = k
       END SELECT
     END DO
+    
+    !LP_Start
+    ALLOCATE (aero_scaling_2d_anth_so2 (row_length, rows)) ! allocate correct dimensions to regional scaling variables
+    aero_scaling_2d_anth_so2 (:,:) = 1.0  ! Default scaling is unscaled
+    ! LR BC/OC start
+    ALLOCATE(aero_scaling_2d_carb_res_bc_ems(row_length, rows))
+    aero_scaling_2d_carb_res_bc_ems(:,:) = 1.0
+    ALLOCATE(aero_scaling_2d_carb_res_oc_ems(row_length, rows))
+    aero_scaling_2d_carb_res_oc_ems(:,:) = 1.0
+    IF (ukca_config%l_acure_anth_so2) THEN
+      DO j = 1, rows
+        DO i = 1, row_length
+          IF (ukca_config%l_acure_anth_so2) THEN
+            ! Region indices used to define scalings for anthropogenic so2; real numbers
+            IF (NINT(acure_ems_region(i,j)) == 1)  THEN
+              aero_scaling_2d_anth_so2(i,j) = ukca_config%acure_anth_so2_nam
+            ELSE IF (NINT(acure_ems_region(i,j)) == 2) THEN
+              aero_scaling_2d_anth_so2(i,j) = ukca_config%acure_anth_so2_eur
+            ELSE IF (NINT(acure_ems_region(i,j)) == 5) THEN
+              aero_scaling_2d_anth_so2(i,j) = ukca_config%acure_anth_so2_r
+            ELSE
+              aero_scaling_2d_anth_so2(i,j) = 1.0
+              IF (PrintStatus > PrStatus_Normal) THEN
+                WRITE (umMessage, '(3A,2(I0,A),A,I0)')'ACURE ERROR: SO2 region ',&
+                                 'does notmatch one of the predefined regional ',&
+                                 'flags at gridpoint ', i, ',', j, ', with ', &
+                                 'nearest int value of ', &
+                                 NINT(acure_ems_region(i,j))
+                CALL umPrint(umMessage,src='ukca_add_emiss')
+              ENDIF   
+            END IF
+          END IF ! l_acure_anth_so2
+        END DO ! i loop
+      END DO ! j loop
+    END IF ! any regional perturbation; all set within firstcall
+    !LP_End
 
     IF (inox == -99 .AND. .NOT. (ukca_config%l_ukca_offline .OR.               &
                                  ukca_config%l_ukca_offline_be)) THEN
@@ -586,7 +634,7 @@ DO l = 1, num_em_flds       ! loop over emission fields
     CASE ('NO_aircrft', 'NO_lightng')
       mapped_tracer =   'NO        '
 
-    CASE ('SO2_low', 'SO2_high', 'SO2_nat')
+    CASE ('SO2_low', 'SO2_high', 'SO2_nat', 'SO2_biom')
       mapped_tracer =   'SO2       '
 
     CASE ('CH4_wetlnd')
@@ -637,17 +685,134 @@ DO l = 1, num_em_flds       ! loop over emission fields
   ! For SO2 species set scaling factor to remove particulate fraction.
   ! Scale biomass burning aerosol emissions if required.
   aero_scaling = 1.0
+  aero_scaling_2d_carb_res_bc_ems(:,:) = 1.0
+  aero_scaling_2d_carb_res_oc_ems(:,:) = 1.0
   IF (emissions(l)%l_mode) THEN
     IF (emissions(l)%l_mode_so2) THEN
-
+    
       aero_scaling = ukca_config%mode_parfrac/100.0 * mm(cp_su)/mm_gas(msotwo)
 
-    ELSE IF (glomap_config%l_ukca_scale_biom_aer_ems .AND.                     &
-             emissions(l)%l_mode_biom) THEN
+    ELSE IF (emissions(l)%l_mode_biom .AND.                                    &
+             (glomap_config%l_ukca_scale_biom_aer_ems .OR.                     &
+              glomap_config%l_ukca_scale_biom_aer_ems_bc .OR.                  &
+              glomap_config%l_ukca_scale_biom_aer_ems_oc)) THEN
 
-      aero_scaling = glomap_config%biom_aer_ems_scaling
+      ! Combined BC/OC scaling, if active
+      IF (glomap_config%l_ukca_scale_biom_aer_ems) THEN
+        aero_scaling = glomap_config%biom_aer_ems_scaling
+      END IF
 
-    END IF
+      ! Species-specific scaling, where active, takes precedence for that
+      ! component
+      IF (emissions(l)%component == cp_bc .AND.                                &
+          glomap_config%l_ukca_scale_biom_aer_ems_bc) THEN
+        aero_scaling = glomap_config%biom_aer_ems_bc_scaling
+      ELSE IF (emissions(l)%component == cp_oc .AND.                           &
+               glomap_config%l_ukca_scale_biom_aer_ems_oc) THEN
+        aero_scaling = glomap_config%biom_aer_ems_oc_scaling
+      END IF
+    
+    !LP_Start  
+    ELSE IF (ukca_config%l_acure_carb_ff_ems .AND.                             &
+             emissions(l)%l_mode_fossil) THEN
+    ! LR CARB_FF_BC/OC start
+      IF (emissions(l)%component == cp_bc) THEN
+        aero_scaling = ukca_config%acure_carb_ff_bc_ems
+      ELSE IF (emissions(l)%component == cp_oc) THEN
+        aero_scaling = ukca_config%acure_carb_ff_oc_ems
+      END IF
+
+      ! LR debug BC/OC component distinctiveness for distinct perturbations
+      !WRITE(umMessage,'(A,A,A,I4,A,I4,A,I4)') &
+      !  'CARB_FF emiss=',TRIM(emissions(l)%tracer_name), &
+      !  ' component=',emissions(l)%component, &
+      !  ' mode=',emissions(l)%mode, &
+      !  ' moment=',emissions(l)%moment
+      
+      !CALL umPrint(umMessage,src='ukca_add_emiss_mod')             
+      ! LR end
+             
+      !aero_scaling = ukca_config%acure_carb_ff_ems
+      ! LR CARB_FF_BC/OC end
+
+    ELSE IF (ukca_config%l_acure_carb_res_ems .AND.                            &
+             emissions(l)%l_mode_res) THEN
+
+      ! LR debug BC/OC component distinctiveness for distinct perturbations
+      !WRITE(umMessage,'(A,A,A,I4,A,I4,A,I4)') &
+      !  'CARB_RES emiss=',TRIM(emissions(l)%tracer_name), &
+      !  ' component=',emissions(l)%component, &
+      !  ' mode=',emissions(l)%mode, &
+      !  ' moment=',emissions(l)%moment
+      !
+      !CALL umPrint(umMessage,src='ukca_add_emiss_mod')             
+      ! LR end
+
+      !LP debug carb_res_ems_scaling
+      !WRITE(umMessage,'(A,A,A)')    &
+      !  'SETTING CARB_RES FOR ',    &
+      !  TRIM(mapped_tracer),        &
+      !  ' '//TRIM(emissions(l)%tracer_name)
+
+      !CALL umPrint(umMessage,src='ukca_add_emiss_mod')
+      !LP debug carb_res_ems_scaling
+      
+      ! LR START - split residential perturbation parameters b/w BC/OC components
+      IF (emissions(l)%component == cp_bc) THEN
+        DO j = 1, rows
+          DO i = 1, row_length
+            IF (ukca_config%l_acure_carb_res_ems) THEN
+              ! Region indices used to define scalings for carb res; real numbers
+              IF (NINT(acure_ems_region(i,j)) == 1)  THEN
+                aero_scaling_2d_carb_res_bc_ems(i,j) = ukca_config%acure_carb_res_bc_ems_nam
+              ELSE IF (NINT(acure_ems_region(i,j)) == 2) THEN
+                aero_scaling_2d_carb_res_bc_ems(i,j) = ukca_config%acure_carb_res_bc_ems_eur
+              ELSE IF (NINT(acure_ems_region(i,j)) == 5) THEN
+                aero_scaling_2d_carb_res_bc_ems(i,j) = ukca_config%acure_carb_res_bc_ems_r
+              ELSE
+                aero_scaling_2d_carb_res_bc_ems(i,j) = 1.0
+                IF (PrintStatus > PrStatus_Normal) THEN
+                  WRITE (umMessage, '(3A,2(I0,A),A,I0)')'ACURE ERROR: carb res region ', &
+                                   'does notmatch one of the predefined regional ', &
+                                   'flags at gridpoint ', i, ',', j, ', with ', &
+                                   'nearest int value of ', &
+                                   NINT(acure_ems_region(i,j))
+                  CALL umPrint(umMessage,src='ukca_add_emiss')
+                END IF   
+              END IF
+            END IF ! l_acure_carb_res_ems
+          END DO ! i loop
+        END DO ! j loop
+      ELSE IF (emissions(l)%component == cp_oc) THEN
+        DO j = 1, rows
+          DO i = 1, row_length
+            IF (ukca_config%l_acure_carb_res_ems) THEN
+              ! Region indices used to define scalings for carb res; real numbers
+              IF (NINT(acure_ems_region(i,j)) == 1)  THEN
+                aero_scaling_2d_carb_res_oc_ems(i,j) = ukca_config%acure_carb_res_oc_ems_nam
+              ELSE IF (NINT(acure_ems_region(i,j)) == 2) THEN
+                aero_scaling_2d_carb_res_oc_ems(i,j) = ukca_config%acure_carb_res_oc_ems_eur
+              ELSE IF (NINT(acure_ems_region(i,j)) == 5) THEN
+                aero_scaling_2d_carb_res_oc_ems(i,j) = ukca_config%acure_carb_res_oc_ems_r
+              ELSE
+                aero_scaling_2d_carb_res_oc_ems(i,j) = 1.0
+                IF (PrintStatus > PrStatus_Normal) THEN
+                  WRITE (umMessage, '(3A,2(I0,A),A,I0)')'ACURE ERROR: carb res region ', &
+                                   'does notmatch one of the predefined regional ', &
+                                   'flags at gridpoint ', i, ',', j, ', with ', &
+                                   'nearest int value of ', &
+                                   NINT(acure_ems_region(i,j))
+                  CALL umPrint(umMessage,src='ukca_add_emiss')
+                END IF   
+              END IF
+            END IF ! l_acure_carb_res_ems
+          END DO ! i loop
+        END DO ! j loop
+      END IF ! OC/BC split
+    ! LR END - split residential perturbation parameters b/w BC/OC components
+    END IF ! regional perturbation; all set within firstcall
+    !LP_End
+
   ELSE IF (TRIM(mapped_tracer) == 'SO2') THEN
 
     aero_scaling = (1.0 - ukca_config%mode_parfrac/100.0)
@@ -722,26 +887,166 @@ DO l = 1, num_em_flds       ! loop over emission fields
       !       as well as the vertical profile for the given model level
       !       and scalings specific to aerosols if applicable.
       !       Also fill in emission diagnostics.
+      ! LP_Start
       IF (emissions(l)%three_dim) THEN
-        em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *                 &
-                            hourly_scaling_2d (:,:)          *                 &
-                            fdaily_scaling                   *                 &
-                            aero_scaling                     *                 &
-                            emissions(l)%vert_scaling_3d (:,:,ilev)
-        emissions(l)%diags (:,:,ilev) = em_field_2d (:,:)
-      ELSE
-        em_field_2d (:,:) = emissions(l)%values(:,:,1)       *                 &
-                            hourly_scaling_2d (:,:)          *                 &
-                            fdaily_scaling                   *                 &
-                            aero_scaling                     *                 &
-                            emissions(l)%vert_scaling_3d (:,:,ilev)
+        IF  (ukca_config%l_acure_volc_so2 .AND.                                &
+            (TRIM(emissions(l)%tracer_name) == 'SO2_nat')) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              ukca_config%acure_volc_so2       *               &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE IF (ukca_config%l_acure_anth_so2 .AND.                            &
+                ((TRIM(emissions(l)%tracer_name) == 'SO2_low') .OR.            &
+                (TRIM(emissions(l)%tracer_name) == 'SO2_high'))) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *    &
+                              hourly_scaling_2d (:,:)          *    &
+                              fdaily_scaling                   *    &
+                              aero_scaling                     *    &
+                              aero_scaling_2d_anth_so2 (:,:)   *    &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ! LR START - additional if for BC/OC split
+        ELSE IF ((ukca_config%l_acure_carb_res_ems) .AND.                      &
+                (emissions(l)%component == cp_bc)) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              aero_scaling_2d_carb_res_bc_ems (:,:) *          &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE IF ((ukca_config%l_acure_carb_res_ems) .AND.                      &
+                (emissions(l)%component == cp_oc)) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              aero_scaling_2d_carb_res_oc_ems (:,:) *          &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE ! Default 3D - LP had this for all remaining
+          em_field_2d (:,:) = emissions(l)%values(:,:,ilev)    *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              !aero_scaling_2d_carb_res_ems (:,:) *             &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+          ! LR end - additional if for BC/OC split (and commented out 2d scaling in else)
+          !LP debug carb_res_ems                    
+          !IF (ilev == 1 .AND. &
+          !   (MAXVAL(aero_scaling_2d_carb_res_ems) /= 1.0 .OR. &
+          !    MINVAL(aero_scaling_2d_carb_res_ems) /= 1.0)) THEN
+          !
+          !  WRITE(umMessage,'(A,A,A,A,A,L1,A,L1)') &
+          !  'USING CARB_RES FOR mapped=',          &
+          !  TRIM(mapped_tracer),                   &
+          !  ' emiss=',                             &
+          !  TRIM(emissions(l)%tracer_name),        &
+          !  ' l_mode=',                            &
+          !  emissions(l)%l_mode,                   &
+          !  ' l_mode_res=',                        &
+          !  emissions(l)%l_mode_res                
+          !
+          !  CALL umPrint(umMessage,src='ukca_add_emiss_mod')
+          ! 
+          !  WRITE(umMessage,'(A,F8.3,A,F8.3)')          &
+          !  'CARB_RES min=',                            &
+          !   & MINVAL(aero_scaling_2d_carb_res_ems),    &
+          !   & ' max=',                                 &
+          !   & MAXVAL(aero_scaling_2d_carb_res_ems)     
+          !
+          !  CALL umPrint(umMessage,src='ukca_add_emiss_mod')
 
+          !END IF
+          !LP debug carb_res_ems 
+        END IF
+        ! LR debug - moved the assignment outside above if else block
+        emissions(l)%diags (:,:,ilev) = em_field_2d (:,:)
+      ELSE !2D
+        IF  (ukca_config%l_acure_volc_so2 .AND.                                &
+            (TRIM(emissions(l)%tracer_name) == 'SO2_nat')) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              ukca_config%acure_volc_so2       *               &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE IF (ukca_config%l_acure_biom_so2 .AND.                            &
+                (TRIM(emissions(l)%tracer_name) == 'SO2_biom')) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              ukca_config%acure_biom_so2       *               &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE IF (ukca_config%l_acure_anth_so2 .AND.                            &
+                ((TRIM(emissions(l)%tracer_name) == 'SO2_low') .OR.            &
+                (TRIM(emissions(l)%tracer_name) == 'SO2_high'))) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *    &
+                              hourly_scaling_2d (:,:)          *    &
+                              fdaily_scaling                   *    &
+                              aero_scaling                     *    &
+                              aero_scaling_2d_anth_so2 (:,:)  *    &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ! LR start - repeat additional if for BC/OC split 
+        ELSE IF ((ukca_config%l_acure_carb_res_ems) .AND.                      &
+                (emissions(l)%component == cp_bc)) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              aero_scaling_2d_carb_res_bc_ems (:,:) *          &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE IF ((ukca_config%l_acure_carb_res_ems) .AND.                      &
+                (emissions(l)%component == cp_oc)) THEN
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              aero_scaling_2d_carb_res_oc_ems (:,:) *          &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+        ELSE
+          em_field_2d (:,:) = emissions(l)%values(:,:,1)       *               &
+                              hourly_scaling_2d (:,:)          *               &
+                              fdaily_scaling                   *               &
+                              aero_scaling                     *               &
+                              !aero_scaling_2d_carb_res_ems (:,:) *             &
+                              emissions(l)%vert_scaling_3d (:,:,ilev)
+          ! LR end - repeat addition if for BC/OC split
+          !LP debug carb_res_ems                    
+          !IF (ilev == 1 .AND. &
+          !   (MAXVAL(aero_scaling_2d_carb_res_ems) /= 1.0 .OR. &
+          !    MINVAL(aero_scaling_2d_carb_res_ems) /= 1.0)) THEN
+          !
+          !  WRITE(umMessage,'(A,A,A,A,A,L1,A,L1)') &
+          !  'USING CARB_RES FOR mapped=',          &
+          !  TRIM(mapped_tracer),                   &
+          !  ' emiss=',                             &
+          !  TRIM(emissions(l)%tracer_name),        &
+          !  ' l_mode=',                            &
+          !  emissions(l)%l_mode,                   &
+          !  ' l_mode_res=',                        &
+          !  emissions(l)%l_mode_res
+          !  
+          !  CALL umPrint(umMessage,src='ukca_add_emiss_mod')
+          ! 
+          !  WRITE(umMessage,'(A,F8.3,A,F8.3)')        &
+          !  'CARB_RES min=',                          &
+          !  MINVAL(aero_scaling_2d_carb_res_ems),     &
+          !  ' max=',                                  & 
+          !  MAXVAL(aero_scaling_2d_carb_res_ems)      
+          !
+          !  CALL umPrint(umMessage,src='ukca_add_emiss_mod')            
+
+          !END IF
+          !LP debug carb_res_ems 
+	! LP_End
+        END IF
         !         Column-integrated diagnostics for 2-D surface emiss:
         !         Add vertically- and time-scaled emissions at all levels
         !         and get a total in the column.
+        ! LR debug - moved the assignment outside above if else block
         emissions(l)%diags (:,:,1) = emissions(l)%diags (:,:,1) +              &
                                      em_field_2d (:,:)
-
       END IF   ! If (emissions(l)%three_dim)
 
       !       Add the 2D emission field (with vertical and temporal profiles
@@ -749,6 +1054,22 @@ DO l = 1, num_em_flds       ! loop over emission fields
       em_field (:,:,ilev,k) = em_field (:,:,ilev,k) + em_field_2d (:,:)
     END DO  ! loop over model_levels
   END IF    ! If (mapped_tracer == CH4 AND l_ukca_prescribech4)
+  
+  IF  (ukca_config%l_acure_volc_so2 .AND.                                                  &
+      (TRIM(emissions(l)%tracer_name) == 'SO2_nat')) THEN
+    WRITE(umMessage,'(A, A, A, F6.3, A)') 'A-CURE_Verbose ',TRIM(emissions(l)%tracer_name),       &
+    ' aero_scaling = ',aero_scaling,' acure_volc_so2 '
+    CALL umPrint(umMessage,src='ukca_add_emiss_mod')
+  END IF
+
+  IF  (ukca_config%l_acure_biom_so2 .AND.                                      &
+      (TRIM(emissions(l)%tracer_name) == 'SO2_biom')) THEN
+    WRITE(umMessage,'(A, A, A, F6.3, A, F6.3)') 'A-CURE_Verbose ',             &
+      TRIM(emissions(l)%tracer_name), ' aero_scaling = ', aero_scaling,        &
+      ' acure_biom_so2 = ', ukca_config%acure_biom_so2
+    CALL umPrint(umMessage,src='ukca_add_emiss_mod')
+  END IF
+
 
 END DO      ! loop over emission fields
 

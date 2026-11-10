@@ -199,7 +199,8 @@ USE ukca_fieldname_mod,  ONLY: maxlen_fieldname,                               &
   fldname_lscat_zhang,                                                         &
   fldname_grid_area_fullht,                                                    &
   fldname_grid_volume,                                                         &
-  fldname_grid_airmass
+  fldname_grid_airmass,                                                        &
+  fldname_acure_ems_region
 
 USE ukca_environment_fields_mod, ONLY: environ_field_info, environ_field_ptrs, &
                                        l_environ_field_available,              &
@@ -407,7 +408,7 @@ CHARACTER(LEN=maxlen_procname), OPTIONAL, INTENT(OUT) :: error_routine
 ! Local variables
 
 ! Field counts
-INTEGER, PARAMETER :: n_max = 148  ! Maximum number of environment fields
+INTEGER, PARAMETER :: n_max = 149  ! Maximum number of environment fields
 INTEGER :: n                       ! Count of environment fields selected
 INTEGER :: i                       ! Counter for loops
 
@@ -779,7 +780,6 @@ IF (glomap_config%l_improve_aero_drydep) THEN
   END IF
 END IF
 
-
 ! -- Environmental drivers in flat grid real group --
 
 n = n + 1
@@ -1047,6 +1047,15 @@ IF (.NOT. ukca_config%l_ukca_emissions_off) THEN
   END IF
 
 END IF  !.NOT. ukca_config%l_ukca_emissions_off
+
+! ACURE REGIONAL MASK for anth_so2 and carb_res_ems
+IF (ukca_config%l_acure_anth_so2 .OR. ukca_config%l_acure_carb_res_ems) THEN
+  n = n + 1
+  IF (n <= n_max) THEN
+    fld_names(n) = fldname_acure_ems_region
+    fld_info(n)%group = group_flat_real
+  END IF
+END IF
 
 ! -- Environmental drivers in flat grid logical group --
 

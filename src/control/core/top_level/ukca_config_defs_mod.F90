@@ -130,7 +130,7 @@ ELSE IF (ukca_config%l_ukca_tropisop .AND. ukca_config%l_ukca_achem) THEN
 
   ! Std tropospheric chemistry + MIM with aerosol scheme (N-R)
   ! ==========================================================
-  n_chem_emissions = 19    ! 2D emission fields
+  n_chem_emissions = 20    ! 2D emission fields
   n_3d_emissions = 4       ! SO2_nat, BC & OC biomass, aircraft NOX
   n_aero_tracers = 9       ! DMS, SO2... aerosol precursor species
   n_chem_tracers = 51
@@ -144,7 +144,7 @@ ELSE IF (ukca_config%l_ukca_tropisop .AND. ukca_config%l_ukca_achem) THEN
     'C2H6      ','C3H8      ','Me2CO     ','MeCHO     ',                       &
     'C5H8      ','BC_fossil ','BC_biofuel','OM_fossil ',                       &
     'OM_biofuel','Monoterp  ','MeOH      ','SO2_low   ',                       &
-    'SO2_high  ','NH3       ','DMS       ','SO2_nat   ',                       &
+    'SO2_high  ','SO2_biom  ','NH3       ','DMS       ','SO2_nat   ',          &
     'BC_biomass','OM_biomass','NO_aircrft']
 ELSE IF (ukca_config%l_ukca_tropisop .AND. .NOT. ukca_config%l_ukca_achem) THEN
 
@@ -166,7 +166,7 @@ ELSE IF (ukca_config%l_ukca_aerchem) THEN
 
   ! Std trop chem with SO2, DMS, NH3, and monoterpene (BE)
   ! ======================================================
-  n_chem_emissions = 18       ! Surface/ high-level emissions
+  n_chem_emissions = 19       ! Surface/ high-level emissions
   n_3d_emissions = 4          ! SO2_nat, aircraft NOX, OC & BC Biomass
   n_chem_tracers = 26         ! advected chemical tracers
   n_aero_tracers =  7         ! advected aerochem ---"---
@@ -178,7 +178,7 @@ ELSE IF (ukca_config%l_ukca_aerchem) THEN
   ['NO        ','CH4       ','CO        ','HCHO      ',                        &
     'C2H6      ','C3H8      ','Me2CO     ','MeCHO     ',                       &
     'C5H8      ','BC_fossil ','BC_biofuel','OM_fossil ',                       &
-    'Monoterp  ','MeOH      ','SO2_low   ','SO2_high  ',                       &
+    'Monoterp  ','MeOH      ','SO2_low   ','SO2_high  ','SO2_biom  ',          &
     'NH3       ','DMS       ','SO2_nat   ','BC_biomass',                       &
     'OM_biomass','NO_aircrft']
 ELSE IF (ukca_config%l_ukca_raq) THEN
@@ -239,7 +239,7 @@ ELSE IF (ukca_config%l_ukca_offline_be) THEN
 
   ! Offline oxidants scheme with aerosol chemistry
   ! ==============================================
-  n_chem_emissions = 8     ! 2D emission fields
+  n_chem_emissions = 9     ! 2D emission fields
   n_3d_emissions = 3       ! SO2_nat, BC & OC biomass
   n_aero_tracers = 7       ! DMS, SO2... aerosol precursor species
   n_chem_tracers = 0
@@ -251,7 +251,7 @@ ELSE IF (ukca_config%l_ukca_offline_be) THEN
   ! Table refers to emissions, more species may be emitted using surrogates
   em_chem_spec =                                                               &
   ['BC_fossil ','BC_biofuel','OM_fossil ','OM_biofuel',                        &
-    'Monoterp  ','SO2_low   ','SO2_high  ','DMS       ',                       &
+    'Monoterp  ','SO2_low   ','SO2_high  ','SO2_biom  ','DMS       ',          &
     'SO2_nat   ','BC_biomass','OM_biomass']
 
 ELSE IF (ukca_config%l_ukca_strat .OR. ukca_config%l_ukca_strattrop .OR.       &
@@ -278,13 +278,13 @@ ELSE IF (ukca_config%l_ukca_strat .OR. ukca_config%l_ukca_strattrop .OR.       &
       nr_phot        = 34
     ELSE ! USING AEROSOL CHEMISTRY
        ! emissions:
-      n_chem_emissions = 7       ! em_chem_spec below
+      n_chem_emissions = 8       ! em_chem_spec below
       n_3d_emissions   = 2       ! volc SO2 & aircraft NOX
       ALLOCATE(em_chem_spec(n_chem_emissions+n_3d_emissions))
       em_chem_spec =                                                           &
            ['NO        ','CH4       ',                                         &
              'CO        ','HCHO      ',                                        &
-             'SO2_low   ','SO2_high  ',                                        &
+             'SO2_low   ','SO2_high  ','SO2_biom   ',                          &
              'DMS       ','SO2_nat   ',                                        &
              'NO_aircrft']
       ! tracers and reactions:
@@ -311,7 +311,7 @@ ELSE IF (ukca_config%l_ukca_strat .OR. ukca_config%l_ukca_strattrop .OR.       &
       nr_phot        = 55         ! photolytic (ATA)
 
     ELSE  ! If using aerosol chemistry
-      n_chem_emissions = 19      ! em_chem_spec below
+      n_chem_emissions = 20      ! em_chem_spec below
       n_3d_emissions   = 4       ! BC, OC, volc SO2 & aircraft NOX
       ALLOCATE(em_chem_spec(n_chem_emissions+n_3d_emissions))
       em_chem_spec =                                                           &
@@ -319,7 +319,7 @@ ELSE IF (ukca_config%l_ukca_strat .OR. ukca_config%l_ukca_strattrop .OR.       &
             'C2H6      ','C3H8      ','Me2CO     ','MeCHO     ',               &
             'C5H8      ','BC_fossil ','BC_biofuel','OM_fossil ',               &
             'OM_biofuel','Monoterp  ','MeOH      ','SO2_low   ',               &
-            'SO2_high  ','NH3       ','DMS       ','SO2_nat   ',               &
+            'SO2_high  ','SO2_biom   ','NH3       ','DMS       ','SO2_nat   ', &
             'BC_biomass','OM_biomass','NO_aircrft']
       IF (ukca_config%i_ukca_chem_version >= ichem_ver132) THEN
         ! Include secondary organic species from isoprene oxidation (SEC_ORG_I)
@@ -353,7 +353,7 @@ ELSE IF (ukca_config%l_ukca_offline) THEN
 
   ! Offline oxidants scheme with aerosol chemistry
   ! ==============================================
-  n_chem_emissions = 8     ! 2D emission fields
+  n_chem_emissions = 9     ! 2D emission fields
   n_3d_emissions = 3       ! SO2_nat, BC & OC biomass
   n_aero_tracers = 7       ! DMS, SO2... aerosol precursor species
   n_chem_tracers = 0
@@ -365,7 +365,7 @@ ELSE IF (ukca_config%l_ukca_offline) THEN
   ! Table refers to emissions, more species may be emitted using surrogates
   em_chem_spec =                                                               &
   ['BC_fossil ','BC_biofuel','OM_fossil ','OM_biofuel',                        &
-    'Monoterp  ','SO2_low   ','SO2_high  ','DMS       ',                       &
+    'Monoterp  ','SO2_low   ','SO2_high  ','SO2_biom   ','DMS       ',         &
     'SO2_nat   ','BC_biomass','OM_biomass']
 
 
@@ -407,7 +407,7 @@ ELSE IF (ukca_config%l_ukca_cristrat) THEN
         nr_therm      = 646        ! thermal reactions  (+45 bimol, +8 termol)
       END IF
     ELSE ! CRI-Strat with aerosol
-      n_chem_tracers  = 166    ! advected chemical tracers
+      n_chem_tracers  = 167    ! advected chemical tracers
       n_aero_tracers  = 17    ! DMS, SO2... aerosol precursor species
       nr_phot         = 123     ! photolytic reacs
       IF (ukca_config%l_ukca_trophet) THEN
@@ -427,7 +427,7 @@ ELSE IF (ukca_config%l_ukca_cristrat) THEN
           'MeOH      ','EtOH      ','HCHO      ','MeCHO     ',                 &
           'EtCHO     ','Me2CO     ','MEK       ','HCOOH     ',                 &
           'MeCO2H    ','HOCH2CHO  ','BC_fossil ','BC_biofuel',                 &
-          'OM_fossil ','OM_biofuel','SO2_low   ','SO2_high  ',                 &
+          'OM_fossil ','OM_biofuel','SO2_low   ','SO2_high  ','SO2_biom   ',   &
           'NH3       ','DMS       ','SO2_nat   ','BC_biomass',                 &
           'OM_biomass','NO_aircrft']
   END IF

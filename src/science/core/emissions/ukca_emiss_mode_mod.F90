@@ -48,7 +48,9 @@ USE ukca_config_specification_mod, ONLY: glomap_config, glomap_variables,      &
                                          i_sussbcocdu_7mode,                   &
                                          i_sussbcocntnh_5mode_7cpt,            &
                                          i_solinsol_6mode,                     &
-                                         i_sussbcocduntnh_8mode_8cpt
+                                         i_sussbcocduntnh_8mode_8cpt,          &
+                                         ukca_config
+                                         
 USE ukca_constants,      ONLY: m_s, m_so2
 
 USE ereport_mod,         ONLY: ereport
@@ -64,7 +66,7 @@ IMPLICIT NONE
 
 ! List of all allowable offline emissions for testing if a given emission
 ! in a netCDF file is an aerosol emission field.
-CHARACTER(LEN=10), PARAMETER :: aero_ems_species(9) = ["BC_biomass",           &
+CHARACTER(LEN=10), PARAMETER :: aero_ems_species(10) = ["BC_biomass",          &
                                                         "OM_biomass",          &
                                                         "BC_fossil ",          &
                                                         "OM_fossil ",          &
@@ -72,7 +74,8 @@ CHARACTER(LEN=10), PARAMETER :: aero_ems_species(9) = ["BC_biomass",           &
                                                         "OM_biofuel",          &
                                                         "SO2_low   ",          &
                                                         "SO2_high  ",          &
-                                                        "SO2_nat   "   ]
+                                                        "SO2_nat   ",          &
+                                                        "SO2_biom  "   ]
 
 CHARACTER(LEN=*), PARAMETER, PRIVATE :: ModuleName='UKCA_EMISS_MODE_MOD'
 
@@ -273,11 +276,37 @@ CASE (3)
     ! Component and mode_frac set below for OM and BC.
     l_emfile_bcoc_bf = .TRUE.
     mode_diam(:) = 150.0
+
+    !KP_Start
+    IF(ukca_config%l_acure_carb_res_diam) THEN
+      mode_diam(:) = ukca_config%acure_carb_res_diam
+    ENDIF
+    
+    IF(ukca_config%l_acure_carb_res_diam) THEN
+      WRITE(umMessage,'(3A,8F6.3,A)') 'A-CURE_Verbose ',tracer_name, &
+      ' mode_diam = ',mode_diam,' acure_carb_res_diam '
+      CALL umPrint(umMessage,src='ukca_emiss_mode_mod' )
+    ENDIF
+    !KP_End
+    
     mode_stdev(:) = 1.59
   CASE ('BC_biomass','OM_biomass')
     ! Component and mode_frac set below for OM and BC.
     l_emfile_bcoc_bm = .TRUE.
     mode_diam(:) = 150.0
+    
+    !KP_Start
+    IF(ukca_config%l_acure_carb_bb_diam) THEN
+      mode_diam(:) = ukca_config%acure_carb_bb_diam
+    ENDIF
+    
+    IF(ukca_config%l_acure_carb_bb_diam) THEN
+      WRITE(umMessage,'(3A,8F6.3,A)') 'A-CURE_Verbose ',tracer_name, &
+      ' mode_diam = ',mode_diam,' acure_carb_bb_diam '
+      CALL umPrint(umMessage,src='ukca_emiss_mode_mod' )
+    ENDIF
+    !KP_End
+     
     mode_stdev(:) = 1.59
   CASE ('BC_fossil','OM_fossil')
     ! FF emission diam is set to 60nm based on Stier et al. 2005
@@ -289,12 +318,38 @@ CASE (3)
     ! Component and mode_frac set below for OM and BC.
     l_emfile_bcoc_ff = .TRUE.
     mode_diam(:) = 60.0
+    
+    !KP_Start
+    IF(ukca_config%l_acure_carb_ff_diam) THEN
+      mode_diam(:) = ukca_config%acure_carb_ff_diam
+    ENDIF
+     
+    IF(ukca_config%l_acure_carb_ff_diam) THEN
+      WRITE(umMessage,'(3A,8F6.3,A)') 'A-CURE_Verbose ',tracer_name, &
+      ' mode_diam = ',mode_diam,' acure_carb_ff_diam '
+      CALL umPrint(umMessage,src='ukca_emiss_mode_mod' )
+    ENDIF
+    !KP_End
+
     mode_stdev(:) = 1.59
-  CASE ('SO2_low','SO2_high')
+  CASE ('SO2_low','SO2_high','SO2_biom')
     icp = cp_su
     mode_frac(:) = [ 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0 ]
     mode_diam(:) = [rmdi,rmdi,150.0,1500.0,rmdi,rmdi,rmdi,rmdi]
     mode_stdev(:) = [rmdi,rmdi,1.59, 2.0, rmdi,rmdi,rmdi,rmdi]
+    
+    !KP_Start
+    IF(ukca_config%l_acure_prim_so4_diam) THEN
+      mode_diam(:) = [rmdi,rmdi,ukca_config%acure_prim_so4_diam,1500.0,rmdi,rmdi,rmdi,rmdi]
+    ENDIF
+     
+    IF(ukca_config%l_acure_prim_so4_diam) THEN
+      WRITE(umMessage,'(3A,8F6.3,A)') 'A-CURE_Verbose ',tracer_name, &
+      ' mode_diam = ',mode_diam,' acure_prim_so4_diam '
+      CALL umPrint(umMessage,src='ukca_emiss_mode_mod' )
+    ENDIF
+    !KP_End
+    
   CASE ('SO2_nat')
     icp = cp_su
     mode_frac(:) = [ 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0 ]

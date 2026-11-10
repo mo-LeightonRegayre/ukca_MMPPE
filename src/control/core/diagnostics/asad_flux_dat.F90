@@ -8766,7 +8766,24 @@ asad_flux_defn('DEP',50155,'W',.TRUE.,0,1,                                     &
 ['          ','          ','          ','          '])                         &
 ]
 
-
+! Yao add extra het chem fluxes for both troposphere and stratosphere
+! For StratTrop scheme, trop het chem is turned on
+! 50999-50995 items are reserved, so add fluxes to 991-994 50995
+TYPE(asad_flux_defn), PARAMETER, PUBLIC ::                                     &
+                         het_chem_strattrop(4) = [                             &
+asad_flux_defn('RXN',50991,'B',.FALSE.,0,4,                                    &
+['N2O5      ','H2O       '],                                                   &
+['HONO2     ','HONO2     ','          ','          ']),                        &
+asad_flux_defn('RXN',50992,'H',.FALSE.,0,4,                                    &
+['N2O5      ','H2O       '],                            & ! Het PSC H04
+['HONO2     ','HONO2     ','          ','          ']),                        &
+asad_flux_defn('RXN',50993,'H',.FALSE.,0,3,                                    &
+['N2O5      ','          '],                            & ! Trophet H17
+['HONO2     ','          ','          ','          ']),                        &
+asad_flux_defn('RXN',50994,'H',.FALSE.,0,3,                                    &
+['HO2       ','          '],                            & ! Trophet H18
+['H2O2      ','          ','          ','          '])                         &
+]
 
 PUBLIC :: asad_load_default_fluxes
 
@@ -8853,6 +8870,7 @@ TYPE(asad_flux_defn), ALLOCATABLE, SAVE :: aa_h2o_budget(:)
 TYPE(asad_flux_defn), ALLOCATABLE, SAVE :: aa_ch4_budget_loss(:)
 TYPE(asad_flux_defn), ALLOCATABLE, SAVE :: aa_ch4_drydep(:)
 TYPE(asad_flux_defn), ALLOCATABLE, SAVE :: aa_ch4_ste(:)
+TYPE(asad_flux_defn), ALLOCATABLE, SAVE :: aa_het_chem_strattrop(:) !Yao
 
 INTEGER :: p1                   ! start position in asad_chemical_fluxes array
 INTEGER :: p2                   ! end position in asad_chemical_fluxes array
@@ -8973,6 +8991,10 @@ IF (ukca_config%l_ukca_strattrop) THEN
       aa_aerosol_chem = asad_aerosol_chem_strattrop
     END IF
   END IF
+  !Yao add trop het chem check
+  ! aa_het_chem_strattrop
+  ALLOCATE(aa_het_chem_strattrop(SIZE(het_chem_strattrop)))
+  aa_het_chem_strattrop = het_chem_strattrop
   ! aa_rco2no2_pan_prod
   ALLOCATE(aa_rco2no2_pan_prod(SIZE(asad_rco2no2_pan_prod)))
   aa_rco2no2_pan_prod = asad_rco2no2_pan_prod
@@ -9306,6 +9328,8 @@ IF (ALLOCATED(aa_ch4_drydep))                                                  &
    n_chemical_fluxes = n_chemical_fluxes + SIZE(aa_ch4_drydep)
 IF (ALLOCATED(aa_ch4_ste))                                                     &
    n_chemical_fluxes = n_chemical_fluxes + SIZE(aa_ch4_ste)
+IF (ALLOCATED(aa_het_chem_strattrop))                                          &
+   n_chemical_fluxes = n_chemical_fluxes + SIZE(aa_het_chem_strattrop)
 
 ALLOCATE(asad_chemical_fluxes(n_chemical_fluxes))
 
@@ -9449,6 +9473,11 @@ IF (ALLOCATED(aa_ch4_ste)) THEN
   asad_chemical_fluxes(p1:p2) = aa_ch4_ste(:)
   p1 = p2 + 1
 END IF
+IF (ALLOCATED(aa_het_chem_strattrop)) THEN
+  p2 = p1 + SIZE(aa_het_chem_strattrop) - 1
+  asad_chemical_fluxes(p1:p2) = aa_het_chem_strattrop(:)
+  p1 = p2 + 1
+END IF
 
 IF (p2 /= n_chemical_fluxes) THEN
   cmessage = ' n_chemical_fluxes and p2 are different'
@@ -9502,6 +9531,7 @@ IF (printstatus > PrStatus_Normal) THEN
 END IF
 
 ! Deallocate the generic arrays
+IF (ALLOCATED(aa_het_chem_strattrop))    DEALLOCATE(aa_het_chem_strattrop)
 IF (ALLOCATED(aa_ch4_ste))               DEALLOCATE(aa_ch4_ste)
 IF (ALLOCATED(aa_ch4_drydep))            DEALLOCATE(aa_ch4_drydep)
 IF (ALLOCATED(aa_ch4_budget_loss))       DEALLOCATE(aa_ch4_budget_loss)

@@ -107,7 +107,7 @@ CASE ('BC_fossil ', 'BC_biofuel', 'BC_biomass',                                &
 
   ! -----------------------------------------
   ! Sulphur containing
-CASE ('SO2       ', 'SO2_low   ', 'SO2_high  ', 'SO2_nat   ')
+CASE ('SO2       ', 'SO2_low   ', 'SO2_high  ', 'SO2_nat   ', 'SO2_biom  ')
   ! Some of these are emission fields
   get_molmass = m_so2
 

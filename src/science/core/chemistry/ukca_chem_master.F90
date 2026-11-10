@@ -3056,6 +3056,8 @@ ratb_t1(84,'N         ','O2        ','NO        ','O(3P)     ','          ',   &
 ! Not in strat scheme
 ! Added N2O5+H2O gasphase reaction to CRI-Strat temporarily to account for loss
 ! of N2O5, at least until tropospheric heterogeneous chemistry is working...
+! Yao: this is a double-counted reaction when trop_hetchem is enabled
+! Yao: original k0=2.50e-22,put k0 to 0 when trop_hetchem is enabled
 ratb_t1(85,'N2O5      ','H2O       ','HONO2     ','HONO2     ','          ',   &
  '          ',2.50e-22, 0.00,0.00,0.00,0.00,0.00,0.00,ti+t+st+cs,0,0,107),     &
 ! B086 Poschl00

@@ -36,6 +36,8 @@ SUBROUTINE common_mode_setup_interface ( glomap_variables_local,               &
                                          i_tune_bc_in,                         &
                                          l_fix_nacl_density_in,                &
                                          l_fix_ukca_hygroscopicities_in,       &
+                                         l_acure_kappa_oc_in,                  &
+                                         acure_kappa_oc_in,                    &
                                          l_dust_ageing_on)
 
 USE ereport_mod,                     ONLY:                                     &
@@ -91,6 +93,8 @@ LOGICAL, INTENT(IN) :: l_radaer_in
 INTEGER, INTENT(IN) :: i_tune_bc_in
 LOGICAL, INTENT(IN) :: l_fix_nacl_density_in
 LOGICAL, INTENT(IN) :: l_fix_ukca_hygroscopicities_in
+LOGICAL, INTENT(IN) :: l_acure_kappa_oc_in
+REAL,    INTENT(IN) :: acure_kappa_oc_in
 LOGICAL, INTENT(IN) :: l_dust_ageing_on
 
 ! Local variables
@@ -120,6 +124,8 @@ CASE (i_sussbcoc_5mode) ! 2
                                  i_tune_bc_in,                                 &
                                  l_fix_nacl_density_in,                        &
                                  l_fix_ukca_hygroscopicities_in,               &
+                                 l_acure_kappa_oc_in,                          &
+                                 acure_kappa_oc_in,                            &
                                  l_dust_ageing_on)
 
 CASE (i_sussbcoc_4mode) ! 3
@@ -168,6 +174,8 @@ CASE (i_sussbcocntnh_5mode_7cpt) ! 10
                                           i_tune_bc_in,                        &
                                           l_fix_nacl_density_in,               &
                                           l_fix_ukca_hygroscopicities_in,      &
+                                          l_acure_kappa_oc_in,                 &
+                                          acure_kappa_oc_in,                   &
                                           l_dust_ageing_on )
 
 CASE (i_solinsol_6mode) ! 11

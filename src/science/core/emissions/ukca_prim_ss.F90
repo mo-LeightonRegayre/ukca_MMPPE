@@ -219,7 +219,11 @@ REAL, PARAMETER :: cutoff=0.0175e-6
 REAL :: mm_da  ! =avogadro*boltzmann/rgas
 ! Scaling factor for emssion of sea salt
 REAL :: scale_emiss
-
+! Scaling factors for sea salt emitted into the soluble accumulation and
+! coarse modes
+REAL :: scale_emiss_acc
+REAL :: scale_emiss_coa
+REAL :: scale_emiss_mode
 CHARACTER(LEN=errormessagelength) :: cmessage       ! Error message
 INTEGER           :: errcode        ! Error code
 
@@ -270,6 +274,15 @@ ELSE
   scale_emiss = 1.0
 END IF
 
+! Apply mode-specific perturbations on top of the existing sea salt scaling.
+scale_emiss_acc = scale_emiss
+scale_emiss_coa = scale_emiss
+IF (glomap_config%l_ukca_scale_emi_ss_acc) THEN
+  scale_emiss_acc = scale_emiss * glomap_config%emi_ss_acc
+END IF
+IF (glomap_config%l_ukca_scale_emi_ss_coa) THEN
+  scale_emiss_coa = scale_emiss * glomap_config%emi_ss_coa
+END IF
 ! .. Loop over sea-salt emission bins
 DO jv = 1,nbins
   IF (drhi(jv) > cutoff) THEN       ! if bin size is > cutoff for flux
@@ -376,8 +389,15 @@ DO jv = 1,nbins
       END IF
 
       ! .. Calculate  sea-salt aerosol source (particles m-2 s-1)
-      boxflux(:,:) = scale_emiss * flux(:,:) * (1.0 - seaice_frac(:,:)) *      &
-                     (1.0 - land_fraction(:,:))
+      IF (modemt == 3) THEN
+        scale_emiss_mode = scale_emiss_acc
+      ELSE IF (modemt == 4) THEN
+        scale_emiss_mode = scale_emiss_coa
+      ELSE
+        scale_emiss_mode = scale_emiss
+      END IF
+      boxflux(:,:) = scale_emiss_mode * flux(:,:) *                            &
+                     (1.0 - seaice_frac(:,:)) * (1.0 - land_fraction(:,:))
 
       ! .. Calculate change in grid box aerosol number density (kg/m2/s)
       deln_mflux(:,:) = boxflux(:,:)*mm_da/avogadro

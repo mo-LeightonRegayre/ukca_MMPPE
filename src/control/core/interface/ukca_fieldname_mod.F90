@@ -361,6 +361,9 @@ CHARACTER(LEN=*), PARAMETER :: fldname_ext_cg_flash  =                         &
                                       'ext_cg_flash'
 CHARACTER(LEN=*), PARAMETER :: fldname_ext_ic_flash  =                         &
                                       'ext_ic_flash'
+!LP ACURE REGIONAL MASK
+CHARACTER(LEN=*), PARAMETER :: fldname_acure_ems_region =                      &
+                                      'acure_ems_region'
 
 ! Interactive biogenic emissions
 CHARACTER(LEN=*), PARAMETER :: fldname_ibvoc_isoprene = 'ibvoc_isoprene'
@@ -388,7 +391,7 @@ CHARACTER(LEN=*), PARAMETER :: fldname_conv_cloud_top =                        &
                                       'conv_cloud_top'
 CHARACTER(LEN=*), PARAMETER :: fldname_lscat_zhang    =                        &
                                       'lscat_zhang'
-
+                                      
 ! --- 2D fields of type logical ---
 CHARACTER(LEN=*), PARAMETER :: fldname_land_sea_mask =                         &
                                       'land_sea_mask'

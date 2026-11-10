@@ -361,6 +361,10 @@ IF ( ANY(aero_ems_species == tracer_name) ) THEN
           ncdf_emissions(ecount)%l_mode_so2 = .TRUE.
         ELSE IF (INDEX(tracer_name,'biomass') /= 0 ) THEN
           ncdf_emissions(ecount)%l_mode_biom = .TRUE.
+        ELSE IF (INDEX(tracer_name,'fossil') /= 0 ) THEN
+          ncdf_emissions(ecount)%l_mode_fossil = .TRUE.
+        ELSE IF (INDEX(tracer_name,'biofuel') /= 0 ) THEN
+          ncdf_emissions(ecount)%l_mode_res = .TRUE.
         END IF
       END DO  ! imoment loop
     END IF    ! IF lmode_emiss

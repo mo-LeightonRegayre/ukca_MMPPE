@@ -114,6 +114,8 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       mode_parfrac,                                            &
                       seadms_ems_scaling,                                      &
                       sea_salt_ems_scaling,                                    &
+                      emi_ss_acc,                                              &
+                      emi_ss_coa,                                              &
                       marine_pom_ems_scaling,                                  &
                       lightnox_scale_fac,                                      &
                       anth_so2_ems_scaling,                                    &
@@ -122,12 +124,36 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       acc_cor_scav_scaling,                                    &
                       mode_incld_so2_rfrac,                                    &
                       biom_aer_ems_scaling,                                    &
+                      biom_aer_ems_bc_scaling,                                 &
+                      biom_aer_ems_oc_scaling,                                 &
                       hno3_uptake_coeff,                                       &
                       ph_fit_coeff_a,                                          &
                       ph_fit_coeff_b,                                          &
                       ph_fit_intercept,                                        &
                       sigwmin,                                                 &
                       sigma_updraught_scaling,                                 &
+                      acure_prim_so4_diam,                                     &
+                      acure_carb_res_diam,                                     &
+                      acure_carb_bb_diam,                                      &
+                      acure_carb_ff_diam,                                      &
+                      acure_so2_inject_height,                                 &
+                      acure_volc_so2,                                          &
+                      acure_biom_so2,                                          &
+                      acure_autoconv_exp_lwp,                                  &
+                      acure_autoconv_exp_nd,                                   &
+                      acure_bvoc_soa,                                          &
+                      acure_anth_so2_eur,                                      &
+                      acure_anth_so2_nam,                                      &
+                      acure_anth_so2_r,                                        &
+                      acure_carb_res_bc_ems_eur,                               &
+                      acure_carb_res_bc_ems_nam,                               &
+                      acure_carb_res_bc_ems_r,                                 &
+                      acure_carb_res_oc_ems_eur,                               &
+                      acure_carb_res_oc_ems_nam,                               &
+                      acure_carb_res_oc_ems_r,                                 &
+                      acure_carb_ff_bc_ems,                                    &
+                      acure_carb_ff_oc_ems,                                    &
+                      acure_kappa_oc,                                          &
                       const_rmol,                                              &
                       const_tfs,                                               &
                       const_rho_water,                                         &
@@ -148,7 +174,11 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       l_ukca_emissions_off,                                    &
                       l_ukca_drydep_off,                                       &
                       l_ukca_wetdep_off,                                       &
-                      l_ukca_scale_ppe,                                        &
+                      l_dry_depvel_so2_scaling,                               &
+                      l_anth_so2_ems_scaling,                                 &
+                      l_dry_depvel_acc_scaling,                               &
+                      l_acc_cor_scav_scaling,                                 &
+                      l_sigma_updraught_scaling,                              &
                       l_ukca_asad_columns,                                     &
                       l_ukca_asad_full,                                        &
                       l_ukca_debug_asad,                                       &
@@ -175,6 +205,7 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       l_ukca_inferno_ch4,                                      &
                       l_ukca_so2ems_expvolc,                                   &
                       l_ukca_so2ems_plumeria,                                  &
+                      l_ukca_so2ems_biomass,                                   &
                       l_ukca_qch4inter,                                        &
                       l_ukca_emsdrvn_ch4,                                      &
                       l_ukca_enable_seadms_ems,                                &
@@ -221,10 +252,14 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       l_bcoc_bm,                                               &
                       l_bcoc_ff,                                               &
                       l_ukca_scale_biom_aer_ems,                               &
+                      l_ukca_scale_biom_aer_ems_bc,                            &
+                      l_ukca_scale_biom_aer_ems_oc,                            &
                       l_ukca_fine_no3_prod,                                    &
                       l_ukca_coarse_no3_prod,                                  &
                       l_no3_prod_in_aero_step,                                 &
                       l_ukca_scale_sea_salt_ems,                               &
+                      l_ukca_scale_emi_ss_acc,                                 &
+                      l_ukca_scale_emi_ss_coa,                                 &
                       l_ukca_scale_marine_pom_ems,                             &
                       l_ukca_radaer,                                           &
                       l_ntpreq_n_activ_sum,                                    &
@@ -241,6 +276,20 @@ SUBROUTINE ukca_setup(error_code,                                              &
                       l_dust_ageing_on,                                        &
                       l_fix_ukca_hygroscopicities,                             &
                       l_skip_const_setup,                                      &
+                      l_acure_prim_so4_diam,                                   &
+                      l_acure_carb_res_diam,                                   &
+                      l_acure_carb_bb_diam,                                    &
+                      l_acure_carb_ff_diam,                                    &
+                      l_acure_so2_inject_height,                               &
+                      l_acure_volc_so2,                                        &
+                      l_acure_biom_so2,                                        &
+                      l_acure_autoconv_exp_lwp,                                &
+                      l_acure_autoconv_exp_nd,                                 &
+                      l_acure_bvoc_soa,                                        &
+                      l_acure_anth_so2,                                        &
+                      l_acure_carb_res_ems,                                    &
+                      l_acure_carb_ff_ems,                                     &
+                      l_acure_kappa_oc,                                        &
                       proc_bl_tracer_mix,                                      &
                       proc_calc_ozonecol,                                      &
                       proc_diag2d_copy_out,                                    &
@@ -439,6 +488,8 @@ REAL, OPTIONAL, INTENT(IN) :: fastjx_prescutoff
 REAL, OPTIONAL, INTENT(IN) :: mode_parfrac
 REAL, OPTIONAL, INTENT(IN) :: seadms_ems_scaling
 REAL, OPTIONAL, INTENT(IN) :: sea_salt_ems_scaling
+REAL, OPTIONAL, INTENT(IN) :: emi_ss_acc
+REAL, OPTIONAL, INTENT(IN) :: emi_ss_coa
 REAL, OPTIONAL, INTENT(IN) :: marine_pom_ems_scaling
 REAL, OPTIONAL, INTENT(IN) :: lightnox_scale_fac
 REAL, OPTIONAL, INTENT(IN) :: anth_so2_ems_scaling
@@ -450,12 +501,36 @@ REAL, OPTIONAL, INTENT(IN) :: dry_depvel_acc_scaling
 REAL, OPTIONAL, INTENT(IN) :: acc_cor_scav_scaling
 REAL, OPTIONAL, INTENT(IN) :: mode_incld_so2_rfrac
 REAL, OPTIONAL, INTENT(IN) :: biom_aer_ems_scaling
+REAL, OPTIONAL, INTENT(IN) :: biom_aer_ems_bc_scaling
+REAL, OPTIONAL, INTENT(IN) :: biom_aer_ems_oc_scaling
 REAL, OPTIONAL, INTENT(IN) :: ph_fit_coeff_a
 REAL, OPTIONAL, INTENT(IN) :: ph_fit_coeff_b
 REAL, OPTIONAL, INTENT(IN) :: ph_fit_intercept
 REAL, OPTIONAL, INTENT(IN) :: sigwmin
 REAL, OPTIONAL, INTENT(IN) :: hno3_uptake_coeff
 REAL, OPTIONAL, INTENT(IN) :: sigma_updraught_scaling
+REAL, OPTIONAL, INTENT(IN) :: acure_prim_so4_diam
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_diam
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_bb_diam
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_ff_diam
+REAL, OPTIONAL, INTENT(IN) :: acure_so2_inject_height
+REAL, OPTIONAL, INTENT(IN) :: acure_volc_so2
+REAL, OPTIONAL, INTENT(IN) :: acure_biom_so2
+REAL, OPTIONAL, INTENT(IN) :: acure_autoconv_exp_lwp
+REAL, OPTIONAL, INTENT(IN) :: acure_autoconv_exp_nd
+REAL, OPTIONAL, INTENT(IN) :: acure_bvoc_soa
+REAL, OPTIONAL, INTENT(IN) :: acure_anth_so2_eur
+REAL, OPTIONAL, INTENT(IN) :: acure_anth_so2_nam
+REAL, OPTIONAL, INTENT(IN) :: acure_anth_so2_r
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_bc_ems_eur
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_bc_ems_nam
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_bc_ems_r
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_oc_ems_eur
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_oc_ems_nam
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_res_oc_ems_r
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_ff_bc_ems
+REAL, OPTIONAL, INTENT(IN) :: acure_carb_ff_oc_ems
+REAL, OPTIONAL, INTENT(IN) :: acure_kappa_oc
 REAL, OPTIONAL, INTENT(IN) :: const_rmol
 REAL, OPTIONAL, INTENT(IN) :: const_tfs
 REAL, OPTIONAL, INTENT(IN) :: const_rho_water
@@ -477,7 +552,11 @@ LOGICAL, OPTIONAL, INTENT(IN) :: l_timer
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_emissions_off
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_drydep_off
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_wetdep_off
-LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_ppe
+LOGICAL, OPTIONAL, INTENT(IN) :: l_dry_depvel_so2_scaling
+LOGICAL, OPTIONAL, INTENT(IN) :: l_anth_so2_ems_scaling
+LOGICAL, OPTIONAL, INTENT(IN) :: l_dry_depvel_acc_scaling
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acc_cor_scav_scaling
+LOGICAL, OPTIONAL, INTENT(IN) :: l_sigma_updraught_scaling
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_asad_columns
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_asad_full
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_debug_asad
@@ -502,6 +581,7 @@ LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_inferno
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_inferno_ch4
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_so2ems_expvolc
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_so2ems_plumeria
+LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_so2ems_biomass
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_qch4inter
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_emsdrvn_ch4
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_enable_seadms_ems
@@ -550,10 +630,14 @@ LOGICAL, OPTIONAL, INTENT(IN) :: l_bcoc_bf
 LOGICAL, OPTIONAL, INTENT(IN) :: l_bcoc_bm
 LOGICAL, OPTIONAL, INTENT(IN) :: l_bcoc_ff
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_biom_aer_ems
+LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_biom_aer_ems_bc
+LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_biom_aer_ems_oc
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_fine_no3_prod
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_coarse_no3_prod
 LOGICAL, OPTIONAL, INTENT(IN) :: l_no3_prod_in_aero_step
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_sea_salt_ems
+LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_emi_ss_acc
+LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_emi_ss_coa
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_scale_marine_pom_ems
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ukca_radaer
 LOGICAL, OPTIONAL, INTENT(IN) :: l_ntpreq_n_activ_sum
@@ -569,6 +653,20 @@ LOGICAL, OPTIONAL, INTENT(IN) :: l_fix_ukca_activate_vert_rep
 LOGICAL, OPTIONAL, INTENT(IN) :: l_bug_repro_tke_index
 LOGICAL, OPTIONAL, INTENT(IN) :: l_fix_ukca_hygroscopicities
 LOGICAL, OPTIONAL, INTENT(IN) :: l_dust_ageing_on
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_prim_so4_diam
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_carb_res_diam
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_carb_bb_diam
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_carb_ff_diam
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_so2_inject_height
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_volc_so2
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_biom_so2
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_autoconv_exp_lwp
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_autoconv_exp_nd
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_bvoc_soa
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_anth_so2
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_carb_res_ems
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_carb_ff_ems
+LOGICAL, OPTIONAL, INTENT(IN) :: l_acure_kappa_oc
 
 ! Control argument for skipping set up of constants if already done
 LOGICAL, OPTIONAL, INTENT(IN) :: l_skip_const_setup
@@ -723,7 +821,42 @@ IF (ukca_config%i_ukca_chem /= i_ukca_chem_off) THEN
 END IF
 
 ! PPE scalings
-IF (PRESENT(l_ukca_scale_ppe)) ukca_config%l_ukca_scale_ppe = l_ukca_scale_ppe
+IF (PRESENT(l_dry_depvel_so2_scaling))                                        &
+  ukca_config%l_dry_depvel_so2_scaling = l_dry_depvel_so2_scaling
+IF (PRESENT(l_anth_so2_ems_scaling))                                          &
+  ukca_config%l_anth_so2_ems_scaling = l_anth_so2_ems_scaling
+IF (PRESENT(l_dry_depvel_acc_scaling))                                        &
+  ukca_config%l_dry_depvel_acc_scaling = l_dry_depvel_acc_scaling
+IF (PRESENT(l_acc_cor_scav_scaling))                                          &
+  ukca_config%l_acc_cor_scav_scaling = l_acc_cor_scav_scaling
+IF (PRESENT(l_sigma_updraught_scaling))                                       &
+  ukca_config%l_sigma_updraught_scaling = l_sigma_updraught_scaling
+IF (PRESENT(l_acure_prim_so4_diam))                                            &
+  ukca_config%l_acure_prim_so4_diam = l_acure_prim_so4_diam
+IF (PRESENT(l_acure_carb_res_diam))                                            &
+  ukca_config%l_acure_carb_res_diam = l_acure_carb_res_diam
+IF (PRESENT(l_acure_carb_bb_diam))                                             &
+  ukca_config%l_acure_carb_bb_diam = l_acure_carb_bb_diam
+IF (PRESENT(l_acure_carb_ff_diam))                                             &
+  ukca_config%l_acure_carb_ff_diam = l_acure_carb_ff_diam
+IF (PRESENT(l_acure_so2_inject_height))                                        &
+  ukca_config%l_acure_so2_inject_height = l_acure_so2_inject_height
+IF (PRESENT(l_acure_volc_so2))                                                 &
+  ukca_config%l_acure_volc_so2 = l_acure_volc_so2
+IF (PRESENT(l_acure_biom_so2))                                                 &
+  ukca_config%l_acure_biom_so2 = l_acure_biom_so2
+IF (PRESENT(l_acure_autoconv_exp_lwp))                                         &
+  ukca_config%l_acure_autoconv_exp_lwp = l_acure_autoconv_exp_lwp
+IF (PRESENT(l_acure_autoconv_exp_nd))                                          &
+  ukca_config%l_acure_autoconv_exp_nd = l_acure_autoconv_exp_nd
+IF (PRESENT(l_acure_bvoc_soa))                                                 &
+  ukca_config%l_acure_bvoc_soa = l_acure_bvoc_soa
+IF (PRESENT(l_acure_anth_so2))                                                 &
+  ukca_config%l_acure_anth_so2 = l_acure_anth_so2
+IF (PRESENT(l_acure_carb_res_ems))                                             &
+  ukca_config%l_acure_carb_res_ems = l_acure_carb_res_ems
+IF (PRESENT(l_acure_carb_ff_ems))                                              &
+  ukca_config%l_acure_carb_ff_ems = l_acure_carb_ff_ems
 
 ! Age-of-air configuration
 
@@ -935,7 +1068,7 @@ IF (ukca_config%i_ukca_chem /= i_ukca_chem_off) THEN
 
   END IF
 
-  IF (ukca_config%l_ukca_scale_ppe) THEN
+  IF (ukca_config%l_dry_depvel_so2_scaling) THEN
     IF (PRESENT(dry_depvel_so2_scaling))                                       &
       ukca_config%dry_depvel_so2_scaling = dry_depvel_so2_scaling
   END IF
@@ -987,6 +1120,8 @@ IF (ukca_config%i_ukca_chem /= i_ukca_chem_off .AND.                           &
   IF (PRESENT(l_ukca_inferno)) ukca_config%l_ukca_inferno = l_ukca_inferno
   IF (PRESENT(l_ukca_so2ems_expvolc))                                          &
     ukca_config%l_ukca_so2ems_expvolc = l_ukca_so2ems_expvolc
+  IF (PRESENT(l_ukca_so2ems_biomass))                                          &
+    ukca_config%l_ukca_so2ems_biomass = l_ukca_so2ems_biomass
   IF (PRESENT(l_ukca_qch4inter)) ukca_config%l_ukca_qch4inter = l_ukca_qch4inter
   IF (PRESENT(l_ukca_emsdrvn_ch4))                                             &
     ukca_config%l_ukca_emsdrvn_ch4 = l_ukca_emsdrvn_ch4
@@ -1057,7 +1192,89 @@ IF (ukca_config%i_ukca_chem /= i_ukca_chem_off .AND.                           &
     IF (PRESENT(seadms_ems_scaling))                                           &
       ukca_config%seadms_ems_scaling = seadms_ems_scaling
   END IF
+  
+  IF (ukca_config%l_acure_prim_so4_diam) THEN
+    IF (PRESENT(acure_prim_so4_diam))                                          &
+      ukca_config%acure_prim_so4_diam = acure_prim_so4_diam
+  END IF
 
+  IF (ukca_config%l_acure_carb_res_diam) THEN
+    IF (PRESENT(acure_carb_res_diam))                                          &
+      ukca_config%acure_carb_res_diam = acure_carb_res_diam
+  END IF
+
+  IF (ukca_config%l_acure_carb_bb_diam) THEN
+    IF (PRESENT(acure_carb_bb_diam))                                           &
+      ukca_config%acure_carb_bb_diam = acure_carb_bb_diam
+  END IF
+  
+  IF (ukca_config%l_acure_carb_ff_diam) THEN
+    IF (PRESENT(acure_carb_ff_diam))                                           &
+      ukca_config%acure_carb_ff_diam = acure_carb_ff_diam
+  END IF
+  
+  IF (ukca_config%l_acure_so2_inject_height) THEN
+    IF (PRESENT(acure_so2_inject_height))                                       &
+      ukca_config%acure_so2_inject_height = acure_so2_inject_height
+  END IF
+
+  IF (ukca_config%l_acure_volc_so2) THEN
+    IF (PRESENT(acure_volc_so2))                                               &
+      ukca_config%acure_volc_so2 = acure_volc_so2
+  END IF
+
+  IF (ukca_config%l_acure_biom_so2) THEN
+    IF (PRESENT(acure_biom_so2))                                               &
+      ukca_config%acure_biom_so2 = acure_biom_so2
+  END IF
+
+  IF (ukca_config%l_acure_autoconv_exp_lwp) THEN
+    IF (PRESENT(acure_autoconv_exp_lwp))                                       &
+      ukca_config%acure_autoconv_exp_lwp = acure_autoconv_exp_lwp
+  END IF
+
+  IF (ukca_config%l_acure_autoconv_exp_nd) THEN
+    IF (PRESENT(acure_autoconv_exp_nd))                                        &
+      ukca_config%acure_autoconv_exp_nd = acure_autoconv_exp_nd
+  END IF
+
+  IF (ukca_config%l_acure_bvoc_soa) THEN
+    IF (PRESENT(acure_bvoc_soa))                                               &
+      ukca_config%acure_bvoc_soa = acure_bvoc_soa
+  END IF
+
+
+  IF (ukca_config%l_acure_anth_so2) THEN
+    IF (PRESENT(acure_anth_so2_eur))                                           &
+      ukca_config%acure_anth_so2_eur = acure_anth_so2_eur
+    IF (PRESENT(acure_anth_so2_nam))                                           &
+      ukca_config%acure_anth_so2_nam = acure_anth_so2_nam
+    IF (PRESENT(acure_anth_so2_r))                                             &
+      ukca_config%acure_anth_so2_r = acure_anth_so2_r
+  END IF
+  
+  IF (ukca_config%l_acure_carb_res_ems) THEN
+    IF (PRESENT(acure_carb_res_bc_ems_eur))                                    &
+      ukca_config%acure_carb_res_bc_ems_eur = acure_carb_res_bc_ems_eur
+    IF (PRESENT(acure_carb_res_bc_ems_nam))                                    &
+      ukca_config%acure_carb_res_bc_ems_nam = acure_carb_res_bc_ems_nam
+    IF (PRESENT(acure_carb_res_bc_ems_r))                                      &
+      ukca_config%acure_carb_res_bc_ems_r = acure_carb_res_bc_ems_r
+    IF (PRESENT(acure_carb_res_oc_ems_eur))                                    &
+      ukca_config%acure_carb_res_oc_ems_eur = acure_carb_res_oc_ems_eur
+    IF (PRESENT(acure_carb_res_oc_ems_nam))                                    &
+      ukca_config%acure_carb_res_oc_ems_nam = acure_carb_res_oc_ems_nam
+    IF (PRESENT(acure_carb_res_oc_ems_r))                                      &
+      ukca_config%acure_carb_res_oc_ems_r = acure_carb_res_oc_ems_r
+  END IF
+  
+  IF (ukca_config%l_acure_carb_ff_ems) THEN
+    IF (PRESENT(acure_carb_ff_bc_ems))                                         &
+      ukca_config%acure_carb_ff_bc_ems = acure_carb_ff_bc_ems
+    IF (PRESENT(acure_carb_ff_oc_ems))                                         &
+      ukca_config%acure_carb_ff_oc_ems = acure_carb_ff_oc_ems
+  END IF
+  
   IF (ukca_config%i_ukca_light_param /= i_light_param_off) THEN
     IF (PRESENT(lightnox_scale_fac))                                           &
       ukca_config%lightnox_scale_fac = lightnox_scale_fac
@@ -1068,7 +1285,7 @@ IF (ukca_config%i_ukca_chem /= i_ukca_chem_off .AND.                           &
   IF (.NOT. ukca_config%l_suppress_ems .AND. PRESENT(nlev_ent_tr_mix))         &
     ukca_config%nlev_ent_tr_mix = nlev_ent_tr_mix
 
-  IF (ukca_config%l_ukca_scale_ppe) THEN
+  IF (ukca_config%l_anth_so2_ems_scaling) THEN
     IF (PRESENT(anth_so2_ems_scaling))                                         &
       ukca_config%anth_so2_ems_scaling = anth_so2_ems_scaling
   END IF
@@ -1288,14 +1505,23 @@ IF (ukca_config%l_ukca_mode) THEN
     IF (PRESENT(l_dust_ageing_on))                                             &
       glomap_config%l_dust_ageing_on = l_dust_ageing_on
 
-    IF (ukca_config%l_ukca_scale_ppe) THEN
-
+    IF (ukca_config%l_dry_depvel_acc_scaling) THEN
       IF (PRESENT(dry_depvel_acc_scaling))                                     &
         glomap_config%dry_depvel_acc_scaling = dry_depvel_acc_scaling
+    END IF
 
+    IF (ukca_config%l_acc_cor_scav_scaling) THEN
       IF (PRESENT(acc_cor_scav_scaling))                                       &
         glomap_config%acc_cor_scav_scaling = acc_cor_scav_scaling
+    END IF
+    
+    IF (PRESENT(l_acure_kappa_oc))                                             &
+      glomap_config%l_acure_kappa_oc = l_acure_kappa_oc
 
+    
+    IF (glomap_config%l_acure_kappa_oc) THEN
+      IF (PRESENT(acure_kappa_oc))                                             &
+        glomap_config%acure_kappa_oc = acure_kappa_oc
     END IF
 
     ! -- GLOMAP deposition configuration options --
@@ -1383,12 +1609,22 @@ IF (ukca_config%l_ukca_mode) THEN
         IF (PRESENT(l_bcoc_ff)) glomap_config%l_bcoc_ff = l_bcoc_ff
         IF (PRESENT(l_ukca_scale_biom_aer_ems))                                &
           glomap_config%l_ukca_scale_biom_aer_ems = l_ukca_scale_biom_aer_ems
+        IF (PRESENT(l_ukca_scale_biom_aer_ems_bc))                             &
+          glomap_config%l_ukca_scale_biom_aer_ems_bc =                         &
+            l_ukca_scale_biom_aer_ems_bc
+        IF (PRESENT(l_ukca_scale_biom_aer_ems_oc))                             &
+          glomap_config%l_ukca_scale_biom_aer_ems_oc =                         &
+            l_ukca_scale_biom_aer_ems_oc
       END IF
 
       ! Sea salt scaling
       IF (glomap_config%l_ukca_primss) THEN
         IF (PRESENT(l_ukca_scale_sea_salt_ems))                                &
           glomap_config%l_ukca_scale_sea_salt_ems = l_ukca_scale_sea_salt_ems
+        IF (PRESENT(l_ukca_scale_emi_ss_acc))                                  &
+          glomap_config%l_ukca_scale_emi_ss_acc = l_ukca_scale_emi_ss_acc
+        IF (PRESENT(l_ukca_scale_emi_ss_coa))                                  &
+          glomap_config%l_ukca_scale_emi_ss_coa = l_ukca_scale_emi_ss_coa
         IF (PRESENT(i_primss_method))                                          &
           glomap_config%i_primss_method = i_primss_method
       END IF
@@ -1401,15 +1637,31 @@ IF (ukca_config%l_ukca_mode) THEN
           l_ukca_scale_marine_pom_ems
       END IF
 
-      ! Scaling factor for biomass burning emissions
+      ! Scaling factors for biomass burning emissions
       IF (glomap_config%l_ukca_scale_biom_aer_ems) THEN
         IF (PRESENT(biom_aer_ems_scaling))                                     &
           glomap_config%biom_aer_ems_scaling = biom_aer_ems_scaling
+      END IF
+      IF (glomap_config%l_ukca_scale_biom_aer_ems_bc) THEN
+        IF (PRESENT(biom_aer_ems_bc_scaling))                                  &
+          glomap_config%biom_aer_ems_bc_scaling = biom_aer_ems_bc_scaling
+      END IF
+      IF (glomap_config%l_ukca_scale_biom_aer_ems_oc) THEN
+        IF (PRESENT(biom_aer_ems_oc_scaling))                                  &
+          glomap_config%biom_aer_ems_oc_scaling = biom_aer_ems_oc_scaling
       END IF
       ! Scaling factor for sea-salt emissions
       IF (glomap_config%l_ukca_scale_sea_salt_ems) THEN
         IF (PRESENT(sea_salt_ems_scaling))                                     &
           glomap_config%sea_salt_ems_scaling = sea_salt_ems_scaling
+      END IF
+      IF (glomap_config%l_ukca_scale_emi_ss_acc) THEN
+        IF (PRESENT(emi_ss_acc))                                               &
+          glomap_config%emi_ss_acc = emi_ss_acc
+      END IF
+      IF (glomap_config%l_ukca_scale_emi_ss_coa) THEN
+        IF (PRESENT(emi_ss_coa))                                               &
+          glomap_config%emi_ss_coa = emi_ss_coa
       END IF
       ! Scaling factor for POM emissions
       IF (glomap_config%l_ukca_scale_marine_pom_ems) THEN
@@ -1464,7 +1716,7 @@ IF (ukca_config%l_ukca_mode) THEN
 
     END IF
 
-    IF (ukca_config%l_ukca_scale_ppe) THEN
+    IF (ukca_config%l_sigma_updraught_scaling) THEN
       IF (PRESENT(sigma_updraught_scaling))                                    &
         glomap_config%sigma_updraught_scaling = sigma_updraught_scaling
     END IF
@@ -1562,14 +1814,23 @@ IF (ukca_config%l_ukca_mode) THEN
     IF (PRESENT(l_fix_ukca_cloud_frac))                                        &
       ukca_config%l_fix_ukca_cloud_frac = l_fix_ukca_cloud_frac
 
-    IF (ukca_config%l_ukca_scale_ppe) THEN
-
+    IF (ukca_config%l_dry_depvel_acc_scaling) THEN
       IF (PRESENT(dry_depvel_acc_scaling))                                     &
         glomap_config%dry_depvel_acc_scaling = dry_depvel_acc_scaling
+    END IF
 
+    IF (ukca_config%l_acc_cor_scav_scaling) THEN
       IF (PRESENT(acc_cor_scav_scaling))                                       &
         glomap_config%acc_cor_scav_scaling = acc_cor_scav_scaling
+    END IF
+    
+    IF (PRESENT(l_acure_kappa_oc))                                             &
+      glomap_config%l_acure_kappa_oc = l_acure_kappa_oc
 
+    
+    IF (glomap_config%l_acure_kappa_oc) THEN
+      IF (PRESENT(acure_kappa_oc))                                             &
+        glomap_config%acure_kappa_oc = acure_kappa_oc
     END IF
 
 
@@ -1624,7 +1885,7 @@ IF (ukca_config%l_ukca_mode) THEN
     END IF
     glomap_config%i_ukca_activation_scheme = i_ukca_activation_off
 
-    IF (ukca_config%l_ukca_scale_ppe) THEN
+    IF (ukca_config%l_sigma_updraught_scaling) THEN
       IF (PRESENT(sigma_updraught_scaling))                                    &
         glomap_config%sigma_updraught_scaling = sigma_updraught_scaling
     END IF

@@ -192,7 +192,7 @@ DO loop = 1, ndepd
 END DO
 
 ! Parameter scaling: scale the dry deposition velocity for SO2
-IF (ukca_config%l_ukca_scale_ppe) THEN
+IF (ukca_config%l_dry_depvel_so2_scaling) THEN
   DO j = 1, ndepd
     IF (speci(nldepd(j)) == 'SO2       ') THEN
       vd(:,:,:,j) = vd(:,:,:,j) * ukca_config%dry_depvel_so2_scaling

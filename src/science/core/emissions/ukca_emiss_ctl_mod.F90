@@ -57,7 +57,8 @@ SUBROUTINE ukca_emiss_ctl (                                                    &
   tstar, dms_sea_conc, chloro_sea,                                             &
   dust_div1, dust_div2, dust_div3, dust_div4, dust_div5, dust_div6, tracers,   &
   ext_cg_flash, ext_ic_flash,                                                  &
-  len_stashwork38, stashwork38, len_stashwork50, stashwork50)
+  len_stashwork38, stashwork38, len_stashwork50, stashwork50,                  &
+  acure_ems_region)
 
 USE ukca_emiss_mod,       ONLY: num_em_flds, num_cdf_em_flds, emissions,       &
                                 ukca_onl_emiss_init,                           &
@@ -253,6 +254,9 @@ REAL, INTENT(IN OUT) :: tracers (1:row_length, 1:rows, 1:model_levels,         &
 REAL, INTENT(IN OUT) :: stashwork38(len_stashwork38)
 REAL, INTENT(IN OUT) :: stashwork50(len_stashwork50)
 REAL, INTENT(OUT) :: plumeria_height(1:row_length, 1:rows)
+
+!LP ACURE REGION ARRAY
+REAL, INTENT(IN) :: acure_ems_region (1:row_length,1:rows)
 
 ! Local variables
 
@@ -1079,7 +1083,7 @@ END DO
 
 ! Parameter Scaling
 ! Antropogenic SO2 emissions
-IF (ukca_config%l_ukca_scale_ppe) THEN
+IF (ukca_config%l_anth_so2_ems_scaling) THEN
   ! SO2
   DO l=1,num_em_flds
     IF (emissions(l)%tracer_name == 'SO2_low   ' .AND.                         &
@@ -1129,7 +1133,8 @@ CALL ukca_add_emiss (                                                          &
   surf_area,                                                                   &
   mass,                                                                        &
   tracers,                                                                     &
-  len_stashwork50, stashwork50)
+  len_stashwork50, stashwork50,                                                &
+  acure_ems_region(1:row_length, 1:rows))
 
 ! ----------------------------------------------------------------------
 ! If nitrate is on then check aerosols are > 0.

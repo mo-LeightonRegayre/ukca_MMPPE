@@ -894,10 +894,25 @@ IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
 DO i = 1, SIZE(ratb_defs)
   IF (ratb_defs(i)%react1 == 'Monoterp  ' .AND.                                &
        ratb_defs(i)%prod1 == 'Sec_Org   ') THEN
-    ratb_defs(i)%pyield1 =                                                     &
+    !LP_Start
+    IF(ukca_config%l_acure_bvoc_soa)THEN
+      ratb_defs(i)%pyield1 =                                                   &
+         ratb_defs(i)%pyield1 * ukca_config%soa_yield_scaling_mt               &
+         * ukca_config%acure_bvoc_soa
+    ELSE
+      ratb_defs(i)%pyield1 =                                                   &
          ratb_defs(i)%pyield1 * ukca_config%soa_yield_scaling_mt
+    END IF
+    !LP_End
   END IF
 END DO
+
+!LP_Start
+IF(ukca_config%l_acure_bvoc_soa) THEN
+      WRITE(umMessage,'(A, F6.3)') 'A-CURE_Verbose acure_bvoc_soa =',ukca_config%acure_bvoc_soa
+      CALL umPrint(umMessage,src='ukca_chem1')
+END IF 
+!LP_End
 
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
 RETURN
@@ -918,41 +933,63 @@ IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
 
    ! A scaling factor soa_yield_scaling_isop can be used to tune the SOA
    ! yield from the oxidation of isoprene.
+!LP_Start
+IF(ukca_config%l_acure_bvoc_soa)THEN
+  DO i = 1, SIZE(ratb_defs)
+    IF (ratb_defs(i)%react1 == 'NO3       ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield2 =                                                     &
+           ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop             &
+           * ukca_config%acure_bvoc_soa
+    END IF
 
-DO i = 1, SIZE(ratb_defs)
-  IF (ratb_defs(i)%react1 == 'NO3       ' .AND.                                &
-      ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
-       ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
-    ratb_defs(i)%pyield2 =                                                     &
-         ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop
-  END IF
+    IF (ratb_defs(i)%react1 == 'O3        ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod3 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield3 =                                                     &
+           ratb_defs(i)%pyield3 * ukca_config%soa_yield_scaling_isop             &
+           * ukca_config%acure_bvoc_soa             
+    END IF
 
-  IF (ratb_defs(i)%react1 == 'O3        ' .AND.                                &
-      ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
-       ratb_defs(i)%prod3 == 'SEC_ORG_I ') THEN
-    ratb_defs(i)%pyield3 =                                                     &
-         ratb_defs(i)%pyield3 * ukca_config%soa_yield_scaling_isop
-  END IF
+    IF (ratb_defs(i)%react1 == 'OH        ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield2 =                                                     &
+           ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop             &
+           * ukca_config%acure_bvoc_soa
+    END IF
+  END DO
+ELSE
+  DO i = 1, SIZE(ratb_defs)
+    IF (ratb_defs(i)%react1 == 'NO3       ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield2 =                                                     &
+           ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop
+    END IF
 
-  IF (ratb_defs(i)%react1 == 'OH        ' .AND.                                &
-      ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
-       ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
-    ratb_defs(i)%pyield2 =                                                     &
-         ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop
-  END IF
-END DO
+    IF (ratb_defs(i)%react1 == 'O3        ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod3 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield3 =                                                     &
+           ratb_defs(i)%pyield3 * ukca_config%soa_yield_scaling_isop
+    END IF
 
-
-IF (ukca_config%i_ukca_chem_version >= ichem_ver132) THEN
-  IF ( ABS(ukca_config%soa_yield_scaling_mt - 1.0) > EPSILON(0.0) ) THEN
-    ! Error message if a scaling of MT SOA yield
-    ! other than unity is used  when isoprene SOA is also included
-    errcode=1
-    cmessage    = 'If isop SOA is on, default yield '       //                 &
-                  'scaling for MT SOA is 1 '
-    CALL ereport('UKCA_CHEM1_INIT',errcode,cmessage)
-  END IF
+    IF (ratb_defs(i)%react1 == 'OH        ' .AND.                                &
+        ratb_defs(i)%react2 == 'C5H8      ' .AND.                                &
+         ratb_defs(i)%prod2 == 'SEC_ORG_I ') THEN
+      ratb_defs(i)%pyield2 =                                                     &
+           ratb_defs(i)%pyield2 * ukca_config%soa_yield_scaling_isop
+    END IF
+  END DO
 END IF
+
+IF(ukca_config%l_acure_bvoc_soa) THEN
+      WRITE(umMessage,'(A, F6.3)') 'A-CURE_Verbose acure_bvoc_soa =',ukca_config%acure_bvoc_soa
+      CALL umPrint(umMessage,src='ukca_chem1')
+END IF 
+!LP_End
 
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
 RETURN
